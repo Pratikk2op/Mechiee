@@ -1,0 +1,46 @@
+.scroll-container {
+    overflow: hidden;
+    white-space: nowrap;
+    width: 100%;
+  }
+  .scroll-track {
+    display: inline-flex;
+    gap: 1.5rem;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-name: scroll-left;
+    animation-duration: 80s;
+  }
+  .scroll-track.reverse {
+    animation-name: scroll-right;
+  }
+  .testimonial-card {
+    width: 260px; /* fixed width */
+
+
+    padding: 1.5rem; /* p-6 equivalent */
+    border-radius: 1rem; /* rounded-2xl */
+
+    box-sizing: border-box; /* include padding in width */
+
+    flex-direction: column;
+    justify-content: flex-start;
+    vertical-align: top;
+  }
+  .testimonial-message {
+    margin-top: 0.5rem;
+    color: #4b5563; /* text-gray-600 */
+    font-size: 0.875rem; /* text-sm */
+ white-space: normal;
+ text-align: justify;
+    line-height: 1.4;
+  }
+
+  @keyframes scroll-left {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  @keyframes scroll-right {
+    0% { transform: translateX(-50%); }
+    100% { transform: translateX(0); }
+  }
