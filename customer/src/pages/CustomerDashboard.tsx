@@ -85,7 +85,7 @@ const CustomerDashboard: React.FC = () => {
   
 
   const [trackingOpen, setTrackingOpen] = useState(false);
-  const [trackingCollapsed, setTrackingCollapsed] = useState(false);
+ 
   const [selectedBookingForTracking, setSelectedBookingForTracking] = useState<string | null>(null);
 
   // Fetch customer data
@@ -600,10 +600,7 @@ const CustomerDashboard: React.FC = () => {
                 {['confirmed', 'assigned', 'on-way', 'arrived', 'working'].includes(selectedService.status) && (
                   <div className="mt-4">
                     <h4 className="font-semibold mb-2 text-sm">Live Tracking</h4>
-                    <RealTimeTracker 
-                      bookingId={selectedService._id}
-                      isActive={true}
-                    />
+                    
                   </div>
                 )}
               </div>
@@ -903,11 +900,7 @@ const CustomerDashboard: React.FC = () => {
       {/* Live Tracking Component */}
       {trackingOpen && selectedBookingForTracking && (
         <div className="fixed bottom-4 left-4 z-50">
-          <LiveTrackingMap
-            bookingId={selectedBookingForTracking}
-            isCollapsed={trackingCollapsed}
-            onToggleCollapse={() => setTrackingCollapsed(!trackingCollapsed)}
-          />
+         
         </div>
       )}
     </div>

@@ -12,6 +12,7 @@ const router = express.Router();
 
 
 // Update user profile
+
 router.put('/profile', auth, async (req, res) => {
   const { name, email } = req.body;
   console.log(req.body);
