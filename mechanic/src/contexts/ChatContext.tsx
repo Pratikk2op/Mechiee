@@ -208,86 +208,48 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    // Message received
-    const handleReceiveMessage = (data: { roomId: string } & Message) => {
-      const { roomId, ...message } = data;
-      
-      // Add message to current chat if it matches
+    const handleReceiveMessage = (data: any) => {
+      const roomId = data.roomId || currentChat?.id;
+      if (!roomId) return;
       if (currentChat?.id === roomId) {
-        setMessages(prev => [...prev, message]);
+        setMessages(prev => [...prev, data]);
       }
-      
-      // Update chat room with new message
-      setChatRooms(prev => prev.map(room => {
-        if (room.id === roomId) {
-          return {
-            ...room,
-            lastMessage: message,
-            unreadCount: currentChat?.id === roomId ? room.unreadCount : room.unreadCount + 1,
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return room;
-      }));
-
-      // Show notification for new messages not from current user
-      if (message.senderId !== user?.id && currentChat?.id !== roomId) {
-        toast.success(`New message from ${message.senderName}`);
+      setChatRooms(prev => prev.map(room => room.id === roomId ? {
+        ...room,
+        lastMessage: data,
+        unreadCount: currentChat?.id === roomId ? room.unreadCount : room.unreadCount + 1,
+        updatedAt: new Date().toISOString()
+      } : room));
+      if (data.senderId !== user?.id && currentChat?.id !== roomId) {
+        toast.success(`New message from ${data.senderName || 'User'}`);
       }
     };
 
-    // User typing
-    const handleUserTyping = ({ userId, userName, userRole }: { userId: string; userName: string; userRole: string }) => {
-      if (userId !== user?.id) {
-        setTypingUsers(prev => {
-          const existing = prev.find(u => u.userId === userId);
-          if (existing) return prev;
-          return [...prev, { userId, userName, userRole }];
-        });
+    const handleTyping = ({ roomId, room, userId, userRole, userName }: any) => {
+      const r = roomId || room;
+      if (userId !== user?.id && currentChat?.id === r) {
+        setTypingUsers(prev => (prev.some(u => u.userId === userId) ? prev : [...prev, { userId, userName, userRole }]));
+      }
+    };
+    const handleStopTyping = ({ roomId, room, userId }: any) => {
+      const r = roomId || room;
+      if (currentChat?.id === r) {
+        setTypingUsers(prev => prev.filter(u => u.userId !== userId));
       }
     };
 
-    // User stopped typing
-    const handleUserStoppedTyping = ({ userId }: { userId: string }) => {
-      setTypingUsers(prev => prev.filter(u => u.userId !== userId));
-    };
-
-    // User joined chat
-    const handleUserJoined = ({ userId, userName, userRole }: { userId: string; userName: string; userRole: string }) => {
-      if (userId !== user?.id) {
-        toast.success(`${userName} joined the chat`);
-      }
-    };
-
-    // User left chat
-    const handleUserLeft = ({ userId, userName }: { userId: string; userName: string }) => {
-      if (userId !== user?.id) {
-        toast.success(`${userName} left the chat`);
-      }
-    };
-
-    // Error handling
-    const handleError = (error: { message: string; details?: string }) => {
-      toast.error(error.message);
-      console.error('Chat error:', error);
-      setError(error.message);
-    };
-
-    // Socket event listeners
     socket.on('receiveMessage', handleReceiveMessage);
-    socket.on('userTyping', handleUserTyping);
-    socket.on('userStoppedTyping', handleUserStoppedTyping);
-    socket.on('userJoined', handleUserJoined);
-    socket.on('userLeft', handleUserLeft);
-    socket.on('error', handleError);
+    socket.on('userTyping', handleTyping);
+    socket.on('userStoppedTyping', handleStopTyping);
+    socket.on('typing', handleTyping);
+    socket.on('stopTyping', handleStopTyping);
 
     return () => {
       socket.off('receiveMessage', handleReceiveMessage);
-      socket.off('userTyping', handleUserTyping);
-      socket.off('userStoppedTyping', handleUserStoppedTyping);
-      socket.off('userJoined', handleUserJoined);
-      socket.off('userLeft', handleUserLeft);
-      socket.off('error', handleError);
+      socket.off('userTyping', handleTyping);
+      socket.off('userStoppedTyping', handleStopTyping);
+      socket.off('typing', handleTyping);
+      socket.off('stopTyping', handleStopTyping);
     };
   }, [socket, isConnected, user, currentChat]);
 
@@ -314,7 +276,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Join an existing chat
   const joinChat = useCallback(async (roomId: string) => {
     if (!user || !socket) return;
-    
     const room = chatRooms.find(r => r.id === roomId);
     if (!room) {
       toast.error('Chat room not found');
@@ -325,32 +286,25 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
 
     try {
-      // Leave current chat if any
       if (currentChat) {
         socket.emit('leaveRoom', { roomId: currentChat.id });
       }
 
-      // Join new chat room
       socket.emit('joinRoom', {
         room: roomId,
         userId: user.id,
         senderRole: user.role,
-        garageId: user.garageId
+        garageId: (user as any).garageId || null
       });
 
-      // Load messages for the chat
       const response = await chatAPI.getChatMessages(roomId);
-      const { messages: chatMessages = [], chatInfo } = response;
+      const { messages: chatMessages = [] } = response;
 
       setCurrentChat(room);
       setMessages(chatMessages);
       setTypingUsers([]);
 
-      // Mark room as read (reset unread count)
-      setChatRooms(prev => prev.map(r => 
-        r.id === roomId ? { ...r, unreadCount: 0 } : r
-      ));
-
+      setChatRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r));
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to join chat';
       setError(errorMessage);
@@ -374,17 +328,21 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Send a message
   const sendMessage = useCallback(async (content: string, messageType: 'text' | 'file' | 'location' = 'text') => {
-    if (!user || !currentChat || !content.trim()) return;
-    
+    if (!user || !currentChat || !content.trim() || !socket) return;
+
     setSendingMessage(true);
     setError(null);
 
     try {
+      socket.emit('sendMessage', {
+        room: currentChat.id,
+        content: content.trim(),
+        sender: user.id,
+        senderRole: user.role,
+        timestamp: new Date().toISOString(),
+        messageType
+      });
       await chatAPI.sendMessage(currentChat.id, content.trim(), messageType);
-      
-      // The message will be received via socket and added to state
-      // No need to optimistically update here since the backend handles it
-      
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to send message';
       setError(errorMessage);
@@ -393,7 +351,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setSendingMessage(false);
     }
-  }, [user, currentChat]);
+  }, [user, currentChat, socket]);
 
   // Create admin support chat
   const createAdminSupportChat = useCallback(async (data: {
@@ -439,15 +397,21 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!socket || !currentChat || isTyping) return;
     
     setIsTyping(true);
-    socket.emit('typing', { roomId: currentChat.id });
-  }, [socket, currentChat, isTyping]);
+    socket.emit('typing', { 
+      room: currentChat.id, 
+      userId: user?.id 
+    });
+  }, [socket, currentChat, isTyping, user?.id]);
 
   const stopTyping = useCallback(() => {
     if (!socket || !currentChat || !isTyping) return;
     
     setIsTyping(false);
-    socket.emit('stopTyping', { roomId: currentChat.id });
-  }, [socket, currentChat, isTyping]);
+    socket.emit('stopTyping', { 
+      room: currentChat.id, 
+      userId: user?.id 
+    });
+  }, [socket, currentChat, isTyping, user?.id]);
 
   // Expose typing functions for use in components
   useEffect(() => {

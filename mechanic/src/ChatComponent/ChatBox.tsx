@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from './../contexts/AuthContext';
 import { useChat } from './../contexts/ChatContext';
+import { useSocket } from '../socket';
 import { Send, MessageCircle, Clock, HelpCircle, X, Users, List } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -33,6 +34,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   initialRoomId,
 }) => {
   const { user } = useAuth();
+  const { socket } = useSocket();
   const {
     chatRooms,
     currentChat,
@@ -104,14 +106,26 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   const handleTyping = useCallback(() => {
     if (!currentChat || isTyping) return;
 
-   
+    // Start typing indicator
+    if (socket) {
+      socket.emit('typing', { 
+        room: currentChat.id, 
+        userId: user?.id 
+      });
+    }
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
     typingTimeoutRef.current = setTimeout(() => {
-   
+      // Stop typing indicator
+      if (socket) {
+        socket.emit('stopTyping', { 
+          room: currentChat.id, 
+          userId: user?.id 
+        });
+      }
     }, 3000);
 
     return () => {
@@ -119,7 +133,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [currentChat, isTyping,]);
+  }, [currentChat, isTyping, socket, user?.id]);
 
   // Send message with booking-related detection
   const handleSendMessage = async () => {

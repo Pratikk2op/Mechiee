@@ -79,7 +79,14 @@ app.set('io', io);
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? [process.env.FRONTEND_URL] 
-    : ['http://localhost:5173', 'http://localhost:3000'],
+    : [
+        'http://localhost:5173', // Customer app
+        'http://localhost:5174', // Garage app  
+        'http://localhost:5175', // Mechanic app
+        'http://localhost:5176', // Mechanic app
+        'http://localhost:3000', // Admin app
+        'http://localhost:3001', // Alternative admin port
+      ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -107,7 +114,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/garage', garageRoutes);
-app.use('/api/users', userRoutes);
+app.use('/api/user', userRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
@@ -190,6 +197,8 @@ const connectDB = async () => {
 // Socket.IO Connection Handling for additional features
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: socketId=${socket.id}`);
+  console.log(`🔍 Socket handshake origin: ${socket.handshake.headers.origin}`);
+  console.log(`🔍 Socket handshake referer: ${socket.handshake.headers.referer}`);
 
   // Register user and join personal and role rooms
   socket.on('register', ({ userId, role }) => {
@@ -200,11 +209,15 @@ io.on('connection', (socket) => {
     console.log(`✅ User registered: userId=${userId}, socketId=${socket.id}, role=${role}`);
   });
 
-  // Join garage room
-  socket.on('joinRoom', (roomId) => {
-    if (!roomId) return;
-    socket.join(roomId);
-    console.log(`Socket ${socket.id} joined room: ${roomId}`);
+  // Join garage room (legacy handler - now handled by chatHandler.js)
+  socket.on('joinRoom', (data) => {
+    // This is now handled by the chat handler, but keep for backward compatibility
+    if (typeof data === 'string') {
+      socket.join(data);
+      console.log(`Socket ${socket.id} joined room: ${data}`);
+    } else {
+      console.log(`Socket ${socket.id} joinRoom data:`, data);
+    }
   });
 
   // Join booking-specific rooms (booking, chat, location)
@@ -280,8 +293,13 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Connection error handling
+  socket.on('connect_error', (error) => {
+    console.error(`❌ Socket connection error: ${error.message}`);
+  });
+
   // Disconnect cleanup
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
     for (const [userId, sId] of userSocketMap.entries()) {
       if (sId === socket.id) {
         userSocketMap.delete(userId);
@@ -289,7 +307,7 @@ io.on('connection', (socket) => {
         break;
       }
     }
-    console.log(`🔌 Socket disconnected: socketId=${socket.id}`);
+    console.log(`🔌 Socket disconnected: socketId=${socket.id}, reason=${reason}`);
   });
 });
 

@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const getDetail = async () => {
     try {
-      const data = await fetch('http://localhost:5000/api/garage', {
+      const data = await fetch('https://backend-3lsi.onrender.com/api/garage', {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json'

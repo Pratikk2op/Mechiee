@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, User, Phone, MapPin, ArrowLeft } from 'lucide-react';
 
-import ThemeToggle from '../ThemeToggle';
+// import ThemeToggle from '../ThemeToggle';
 import { toast } from 'react-hot-toast';
 
 const CustomerRegister: React.FC = () => {
@@ -63,7 +63,7 @@ const CustomerRegister: React.FC = () => {
       console.log('Current user location:', latitude, longitude);
   
       // Make the POST request with lat/lng included
-      const response = await fetch(`http://localhost:5000/api/auth/register-customer`, {
+      const response = await fetch(`https://backend-3lsi.onrender.com/api/auth/register-customer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -109,7 +109,7 @@ const CustomerRegister: React.FC = () => {
       </div>
       
       <div className="absolute top-4 right-4">
-        <ThemeToggle />
+        {/* <ThemeToggle /> */}
       </div>
 
       <motion.div

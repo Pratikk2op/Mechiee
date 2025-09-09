@@ -56,8 +56,12 @@ export const AuthenticateProvider: React.FC<{ children: ReactNode }> = ({
       try {
         const userData = await authAPI.getCurrentUser();
         setUser(userData);
-      } catch {
+      } catch (error) {
         setUser(null);
+        // Don't show error for 401 - user just needs to login
+        if (error instanceof Error && !error.message.includes('401')) {
+          console.error('Non-auth error:', error);
+        }
       } finally {
         setLoading(false);
       }

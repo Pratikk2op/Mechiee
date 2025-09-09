@@ -82,6 +82,7 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
 }) => {
   const { user } = useAuth();
   const [bookingList, setBookingList] = useState<Booking[]>([]);
+  const [pendingBooking, setPendingBooking] = useState<Booking[]>([]);
   const [mechanicList, setMechanicList] = useState<Mechanic[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -93,44 +94,10 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
       setMechanicList([]);
       return;
     }
+  },[])
 
-    try {
-      setLoading(true);
-      const [bookingsRes, mechanicsRes] = await Promise.all([
-        axios.get(`${BASE_URI}/api/bookings`, {
-          withCredentials: true,
-          timeout: 10000,
-        }),
-        axios.get(`${BASE_URI}/api/users/mechanics`, {
-          withCredentials: true,
-          timeout: 10000,
-        }),
-      ]);
 
-      const bookings = Array.isArray(bookingsRes.data)
-        ? bookingsRes.data
-        : [];
-      bookings.sort(
-        (a, b) =>
-          new Date(b.createdAt || '').getTime() -
-          new Date(a.createdAt || '').getTime()
-      );
-      setBookingList(bookings);
 
-      setMechanicList(
-        Array.isArray(mechanicsRes.data) ? mechanicsRes.data : []
-      );
-    } catch (err: any) {
-      console.error(
-        'Data load error:',
-        err.response?.data?.message || err.message
-      );
-      // Optionally show toast error here
-      // toast.error(err.response?.data?.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
 
   // Notification helper function
   const notifySystem = (title: string, body: string) => {
@@ -448,7 +415,7 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
         loading,
         acceptBooking,
         deleteMechanic,
-        pendingBookingList,
+        pendingBooking,
         confirmedBookingList,
         totalRevenue,
         reloadData,

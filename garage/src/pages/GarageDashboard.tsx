@@ -10,13 +10,13 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import ChatBox from '../ChatComponent/ChatBox';
+// Chat removed per requirement
 import RealTimeTracker from '../tracking/RealTimeTracker';
 import LiveTrackingMap from '../tracking/LiveTrackingMap';
 import BillingComponent from './BillingComponent';
 import ThemeToggle from '../ThemeToggle';
 import PendingOrders from './PendingOrders';
-import socket from '../socket';
+import appSocket from '../socket';
 
 // Define interfaces (aligned with BookingContext and backend)
 interface Customer {
@@ -89,14 +89,14 @@ const markerIcon = new L.Icon({
 
 const GarageDashboard: React.FC = () => {
   const { user, logout, updateProfile } = useAuth();
-  const { bookingList, mechanicList, acceptBooking, deleteMechanic, pendingBookingList, reloadData,garageId } = useBooking();
+  const { bookingList, mechanicList, acceptBooking, deleteMechanic, pendingBooking, reloadData, garageId } = useBooking();
   const [activeTab, setActiveTab] = useState<string>('pending-orders');
   const [loading, setLoading] = useState<boolean>(true);
   const [expandedMechanicId, setExpandedMechanicId] = useState<string | null>(null);
   const [showMapId, setShowMapId] = useState<string | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  // Use the shared appSocket instance; avoid shadowing by not redefining 'socket' state
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-  const [profileForm, setProfileForm] = useState<{ name: string; email: string }>({ name: '', email: '' });
+  const [profileForm, setProfileForm] = useState<{ name: string; email: string,phone:string }>({ name: '', email: '' ,phone:''});
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMinimized, setChatMinimized] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -136,14 +136,9 @@ const GarageDashboard: React.FC = () => {
   // Initialize Socket.IO and register garage
   useEffect(() => {
     if (user?._id && user?.role === 'garage') {
-      // The socket is already initialized in socket.ts, so we can use it directly
-      setSocket(socket);
-
       const handleConnect = () => {
         console.log('Garage socket connected');
-        if (socket && user?._id) {
-          socket.emit('register', { userId: user._id, role: 'garage' });
-        }
+        appSocket.emit('register', { userId: user._id, role: 'garage' });
       };
 
       const handleConnectError = (err: Error) => {
@@ -160,6 +155,7 @@ const GarageDashboard: React.FC = () => {
           duration: 5000,
         });
         notifySystem('New Booking', `Booking from ${data.customerName} received.`);
+        // Force refresh of pending bookings
         reloadData();
       };
 
@@ -180,9 +176,7 @@ const GarageDashboard: React.FC = () => {
         notifySystem('Booking Closed', data.message);
         reloadData();
       };
-      // --- End real-time booking events ---
 
-      // --- Real-time notification events ---
       const handleNotification = (data: { type: string; message: string; payload?: any; timestamp: Date }) => {
         setNotifications(prev => [
           {
@@ -195,54 +189,31 @@ const GarageDashboard: React.FC = () => {
           },
           ...prev
         ]);
-        
-        // Show toast and play sound for important notifications
-        if (data.type === 'booking:new' || data.type === 'booking:accepted' || data.type === 'booking:completed' || data.type === 'booking:cancelled') {
-          toast.success(data.message, {
-            position: 'top-right',
-            duration: 3000,
-            icon: '💬',
-          });
-          notificationSound.play();
-        } else if (data.type === 'chat:message') {
-          toast(data.message, {
-            position: 'top-right',
-            duration: 3000,
-            icon: '💬',
-          });
+
+        if (data.type.startsWith('booking:')) {
+          toast.success(data.message, { position: 'top-right', duration: 3000 });
           notificationSound.play();
         }
       };
 
-      // Set up socket event listeners with null check
-      if (socket) {
-        socket.on('connect', handleConnect);
-        socket.on('connect_error', handleConnectError);
-        socket.on('booking:new', handleNewBooking);
-        socket.on('booking:stored', handleBookingStored);
-        socket.on('booking:closed', handleBookingClosed);
-        socket.on('notification', handleNotification);
-      }
+      appSocket.on('connect', handleConnect);
+      appSocket.on('connect_error', handleConnectError);
+      appSocket.on('newBookingRequest', handleNewBooking);
+      appSocket.on('booking:stored', handleBookingStored);
+      appSocket.on('booking:closed', handleBookingClosed);
+      appSocket.on('notification', handleNotification);
 
-      // Cleanup function
       return () => {
-        if (socket) {
-          // Remove all event listeners
-          socket.off('connect', handleConnect);
-          socket.off('connect_error', handleConnectError);
-          socket.off('booking:new', handleNewBooking);
-          socket.off('booking:stored', handleBookingStored);
-          socket.off('booking:closed', handleBookingClosed);
-          socket.off('notification', handleNotification);
-          
-          // Disconnect socket
-          socket.disconnect();
-          console.log('Garage socket disconnected');
-        }
+        appSocket.off('connect', handleConnect);
+        appSocket.off('connect_error', handleConnectError);
+        appSocket.off('newBookingRequest', handleNewBooking);
+        appSocket.off('booking:stored', handleBookingStored);
+        appSocket.off('booking:closed', handleBookingClosed);
+        appSocket.off('notification', handleNotification);
       };
     }
   }, [user, reloadData]);
-
+ 
   // Browser notification function
   const notifySystem = (title: string, body: string) => {
     if (Notification.permission === 'granted') {
@@ -283,7 +254,7 @@ const GarageDashboard: React.FC = () => {
               id: n._id,
               type: n.type,
               message: n.message,
-              timestamp: new Date(n.timestamp),
+              timestamp: new Date(n.timestamp || n.createdAt),
               payload: n.payload,
               read: n.read
             })),
@@ -355,7 +326,7 @@ const GarageDashboard: React.FC = () => {
       return;
     }
     try {
-      await updateProfile({ name: profileForm.name, email: profileForm.email });
+      await updateProfile({ name: profileForm.name, email: profileForm.email,phone:profileForm.phone });
       toast.success('Profile updated successfully', {
         position: 'top-right',
         duration: 5000,
@@ -522,8 +493,8 @@ const GarageDashboard: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
                 <div>
                   <p className="text-gray-600 dark:text-gray-400">Customer</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{booking.customerName || booking.customerId?.name || 'N/A'}</p>
-                  <p className="text-gray-500">{booking.customerId?.phone || 'N/A'}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{booking.customerName || booking.name || 'N/A'}</p>
+                  <p className="text-gray-500">{booking?.mobile || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-gray-600 dark:text-gray-400">Bike Details</p>
@@ -562,15 +533,7 @@ const GarageDashboard: React.FC = () => {
                   >
                     Decline
                   </button>
-                  <button
-                    onClick={() => {
-                      setSelectedBooking(booking);
-                      setChatOpen(true);
-                    }}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Chat
-                  </button>
+                  {/* Chat removed; phone number will be shared via customer details */}
                 </div>
               )}
               
@@ -690,47 +653,7 @@ const GarageDashboard: React.FC = () => {
     </div>
   );
 
-  // Render chat content
-  const renderChatContent = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Chat</h2>
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Chat with Customers</h3>
-        <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Select a booking to start chatting with the customer.
-        </p>
-        <div className="space-y-2">
-          {bookingList.filter(booking => ['accepted', 'in-progress', 'on-way', 'arrived', 'working'].includes(booking.status)).map((booking) => (
-            <button
-              key={booking._id}
-              onClick={() => {
-                setSelectedBooking(booking);
-                setChatOpen(true);
-              }}
-              className="w-full p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {booking.customerId?.name || booking.customerName || 'Unknown Customer'}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {booking.serviceId?.name || booking.serviceType || 'Unknown Service'}
-                  </p>
-                  {booking.mechanic && (
-                    <p className="text-xs text-green-600 dark:text-green-400">
-                      Mechanic: {typeof booking.mechanic === 'string' ? 'Assigned' : booking.mechanic?.name || 'Unknown'}
-                    </p>
-                  )}
-                </div>
-                <MessageCircle size={20} className="text-blue-500" />
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  // Chat content removed
 
   // Render billing content
   const renderBillingContent = () => (
@@ -839,6 +762,20 @@ const GarageDashboard: React.FC = () => {
               onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
               className="mt-1 w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-green-500 focus:border-green-500"
               placeholder="Enter your email"
+            />
+          </div>
+             <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Phone
+            </label>
+            <input
+              id="number"
+              type="number"
+              value={profileForm.phone}
+          
+              onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+              className="mt-1 w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-green-500 focus:border-green-500"
+              placeholder="Enter your phone"
             />
           </div>
           <button
@@ -990,7 +927,7 @@ const GarageDashboard: React.FC = () => {
                   { id: 'mechanics', label: 'Mechanics', icon: Users },
                   { id: 'billing', label: 'Billing', icon: Receipt },
                   { id: 'tracking', label: 'Live Tracking', icon: MapPin },
-                  { id: 'chats', label: 'Chat', icon: MessageCircle },
+                  // Chat tab removed
                   { id: 'profile', label: 'Profile', icon: User },
                 ].map((item) => (
                   <li key={item.id}>
@@ -1031,33 +968,13 @@ const GarageDashboard: React.FC = () => {
             {activeTab === 'mechanics' && renderMechanicsContent()}
             {activeTab === 'billing' && renderBillingContent()}
             {activeTab === 'tracking' && renderTrackingContent()}
-            {activeTab === 'chats' && renderChatContent()}
+            {/* Chat tab removed */}
             {activeTab === 'profile' && renderProfileContent()}
           </div>
         </div>
       </div>
 
-      {/* Chat Component */}
-      {selectedBooking && (
-        <ChatBox
-          bookingId={selectedBooking._id}
-          isOpen={chatOpen}
-          onClose={() => setChatOpen(false)}
-          onMinimize={() => setChatMinimized(!chatMinimized)}
-          isMinimized={chatMinimized}
-        />
-      )}
-      
-      {/* Chat Toggle Button */}
-      {selectedBooking && (
-        <button
-          onClick={() => setChatOpen(!chatOpen)}
-          className="fixed bottom-4 right-4 z-50 bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-colors"
-          title="Open Chat"
-        >
-          💬
-        </button>
-      )}
+      {/* Chat removed */}
 
       {/* Billing Component */}
       <BillingComponent

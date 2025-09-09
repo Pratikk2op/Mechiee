@@ -85,7 +85,7 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
   const [mechanicList, setMechanicList] = useState<Mechanic[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [socket, setSocket] = useState<Socket | null>(null);
-
+  const [garageId, setGarageId] = useState<string | null>(null);
   // Reload bookings and mechanics data
   const reloadData = useCallback(async () => {
     if (!user) {
@@ -101,7 +101,7 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
           withCredentials: true,
           timeout: 10000,
         }),
-        axios.get(`${BASE_URI}/api/users/mechanics`, {
+        axios.get(`${BASE_URI}/api/user/mechanics`, {
           withCredentials: true,
           timeout: 10000,
         }),
@@ -178,6 +178,21 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
       );
     }
   };
+
+const getGarageId = async (): Promise<void> => {
+  const response = await fetch(`${BASE_URI}/api/garage`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  const data = await response.json();
+  console.log(data.garages[0]._id);
+  setGarageId(data.garages[0]._id);
+};
+useEffect(() => {
+  if (user) {
+    getGarageId();
+  }
+}, [user]);
 
   // Delete a mechanic by ID
   const deleteMechanic = async (mechanicId: string): Promise<void> => {
@@ -445,7 +460,9 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
       value={{
         bookingList,
         mechanicList,
+        garageId,
         loading,
+    
         acceptBooking,
         deleteMechanic,
         pendingBookingList,

@@ -1,4 +1,5 @@
 import React from 'react';
+import './Brands.css';
 
 const Brands = () => {
   const images = [

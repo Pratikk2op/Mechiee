@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useAuth } from './../contexts/AuthContext';
-import { useChat } from './../contexts/ChatContext';
-import { Send, MessageCircle, Clock, HelpCircle, X, Users, List } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useChat } from '../contexts/ChatContext';
+import { Send, MessageCircle, HelpCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ChatBoxProps {
@@ -11,15 +11,43 @@ interface ChatBoxProps {
   showAdminSupport?: boolean;
   onMinimize?: () => void;
   isMinimized?: boolean;
-  initialChatType?: 'booking' | 'admin_support';
+  initialChatType?: 'booking' | 'admin_support' | 'general';
   initialRoomId?: string;
 }
 
 interface AdminSupportForm {
-  category: string;
+  category: 'technical_issue' | 'booking_issue' | 'payment_issue' | 'service_quality' | 'other';
   description: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  supportType: string;
+  supportType: 'technical' | 'billing' | 'general' | 'complaint' | 'feedback';
+}
+
+interface ChatRoom {
+  id: string;
+  type: 'booking' | 'admin_support';
+  bookingId?: string;
+  chatId?: string;
+  participants: { userId: string; name: string; role: string; isOnline: boolean }[];
+  lastMessage?: { content: string; timestamp: Date };
+  unreadCount: number;
+  supportStatus?: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  category?: string;
+  createdAt: string;
+  updatedAt: string;
+  title?: string;
+}
+
+interface Message {
+  _id: string;
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: string;
+  content: string;
+  timestamp: Date;
+  readBy: { userId: string; readAt: Date }[];
+  messageType?: string;
 }
 
 const ChatBox: React.FC<ChatBoxProps> = ({
@@ -33,25 +61,8 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   initialRoomId,
 }) => {
   const { user } = useAuth();
-  const {
-    chatRooms,
-    currentChat,
-    messages,
-    loadChatRooms,
-    joinChat,
-    leaveChat,
-    sendMessage: sendChatMessage,
-    isTyping,
-    typingUsers,
-    createAdminSupportChat,
-    loading,
-    sendingMessage,
-    error,
-   
-  } = useChat();
-
+  const { socket, joinChat, leaveChat, sendMessage, createAdminSupportChat, isTyping, typingUsers, loading, sendingMessage, error } = useChat();
   const [message, setMessage] = useState<string>('');
-  const [showChatList, setShowChatList] = useState(false);
   const [showAdminSupportModal, setShowAdminSupportModal] = useState(false);
   const [adminSupportForm, setAdminSupportForm] = useState<AdminSupportForm>({
     category: 'technical_issue',
@@ -59,94 +70,83 @@ const ChatBox: React.FC<ChatBoxProps> = ({
     priority: 'medium',
     supportType: 'general',
   });
-
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [typingUsers]);
 
-  // Initialize chat when component mounts
+  // Initialize chat
   useEffect(() => {
+    if (!user || !isOpen || !socket) return;
+
     const initializeChat = async () => {
-      if (!user || !isOpen) return;
-
       try {
-        // Load chat rooms
-        await loadChatRooms();
-
-        // Join initial chat if provided
-        if (initialRoomId) {
-          await joinChat(initialRoomId);
-        } else if (bookingId) {
-          const bookingRoomId = `booking_${bookingId}`;
-          await joinChat(bookingRoomId);
+        let roomId = initialRoomId;
+        if (!roomId && bookingId && initialChatType === 'booking') {
+          roomId = `booking_${bookingId}`;
         }
-      } catch (error) {
-        console.error('Failed to initialize chat:', error);
+        if (roomId) {
+          await joinChat(roomId);
+        }
+      } catch (err: any) {
+        console.error('Failed to initialize chat:', err);
         toast.error('Failed to initialize chat');
       }
     };
 
     initializeChat();
 
-    // Cleanup on unmount or close
     return () => {
-      if (currentChat) {
-        leaveChat();
-      }
+      leaveChat();
     };
-  }, [user, isOpen, initialRoomId, bookingId, loadChatRooms, joinChat, leaveChat]);
+  }, [user, isOpen, bookingId, initialRoomId, initialChatType, socket, joinChat, leaveChat]);
 
   // Handle typing with debounce
   const handleTyping = useCallback(() => {
-    if (!currentChat || isTyping) return;
+    if (!socket || isTyping || !user) return;
 
-   
+    socket.emit('typing', {
+      room: initialRoomId || `booking_${bookingId}`,
+      userId: user.id,
+      userName: user.name || 'Unknown',
+      userRole: user.role,
+    });
+
+
+
+
+
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
     typingTimeoutRef.current = setTimeout(() => {
-   
+      socket.emit('stopTyping', {
+        room: initialRoomId || `booking_${bookingId}`,
+        userId: user.id,
+      });
     }, 3000);
+  }, [socket, isTyping, user, initialRoomId, bookingId]);
 
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [currentChat, isTyping,]);
-
-  // Send message with booking-related detection
-  const handleSendMessage = async () => {
-    if (!message.trim() || sendingMessage || !currentChat) return;
+  // Send message
+  const handleSendMessage = useCallback(async () => {
+    if (!message.trim() || sendingMessage || !user) return;
 
     try {
-      // Check if message is booking-related
-      const isBookingRelated = /\b(booking|appointment|service|repair|bike|order|issue with booking)\b/i.test(message);
-      const bookingIdMatch = message.match(/\b(booking\s*id|order\s*id|appointment\s*id):?\s*([0-9a-f]{24})\b/i);
-      const extractedBookingId = bookingIdMatch ? bookingIdMatch[2] : null;
 
-      // Send message via ChatContext
-      await sendChatMessage(message.trim(), 'text');
-
-      // Emit custom event for booking-related messages
-      if (isBookingRelated && currentChat.type !== 'booking' && user?.role !== 'admin') {
-        // Notify backend to route to garage/mechanic
-        // Note: The backend handles routing to garage/mechanic based on bookingId or general query
-        // This is handled in server.js via 'sendMessage' event
-      }
-
+      await sendMessage(message.trim(), 'text');
       setMessage('');
-    } catch (error) {
-      console.error('Failed to send message:', error);
+    } catch (err: any) {
+      console.error('Failed to send message:', err);
       toast.error('Failed to send message');
     }
-  };
+  }, [message, sendingMessage, sendMessage, user]);
 
   // Handle Enter key
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -164,7 +164,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
     }
 
     try {
-      const result = await createAdminSupportChat(adminSupportForm);
+      await createAdminSupportChat(adminSupportForm);
       setShowAdminSupportModal(false);
       setAdminSupportForm({
         category: 'technical_issue',
@@ -172,30 +172,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({
         priority: 'medium',
         supportType: 'general',
       });
-      toast.success('Admin support chat created');
-      await joinChat(result.roomId); // Auto-join the new support chat
-    } catch (error) {
-      console.error('Failed to create admin support chat:', error);
+    } catch (err: any) {
+      console.error('Failed to create admin support chat:', err);
       toast.error('Failed to create admin support chat');
     }
-  };
-
-  // Switch between chats
-  const handleSwitchChat = async (roomId: string) => {
-    try {
-      await joinChat(roomId);
-      setShowChatList(false);
-    } catch (error) {
-      console.error('Failed to switch chat:', error);
-      toast.error('Failed to switch chat');
-    }
-  };
-
-  // Get current participants
-  const getCurrentParticipants = () => {
-    if (!currentChat) return [];
-    const room = chatRooms.find((room) => room.id === currentChat.id);
-    return room?.participants || [];
   };
 
   if (!isOpen) return null;
@@ -205,352 +185,172 @@ const ChatBox: React.FC<ChatBoxProps> = ({
       <div className="fixed bottom-4 right-4 z-50">
         <button
           onClick={onMinimize}
-          className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg relative"
+          className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-transform duration-300 hover:scale-105"
           title="Expand Chat"
+          aria-label="Expand chat window"
         >
           <MessageCircle size={24} />
-          {chatRooms.some((room) => room.unreadCount > 0) && (
-            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-              {chatRooms.reduce((total, room) => total + room.unreadCount, 0)}
-            </div>
-          )}
         </button>
       </div>
     );
   }
 
   return (
-    <>
-      <div className="fixed bottom-4 right-4 w-96 h-96 bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col z-50">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-green-600 text-white p-4 rounded-t-lg flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <MessageCircle size={20} />
-            <div>
-              <h3 className="font-semibold">
-                {currentChat?.type === 'admin_support'
-                  ? 'Admin Support'
-                  : currentChat?.bookingId
-                  ? `Booking #${currentChat.bookingId.slice(-6)}`
-                  : 'Chat'}
-              </h3>
-              {currentChat && (
-                <p className="text-sm opacity-90">
-                  {getCurrentParticipants().length} participant
-                  {getCurrentParticipants().length > 1 ? 's' : ''}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            {/* Chat List Button */}
-            <button
-              onClick={() => setShowChatList(true)}
-              className="p-1 hover:bg-white/20 rounded transition-colors"
-              title="Chat List"
-            >
-              <List size={16} />
-              {chatRooms.some((room) => room.unreadCount > 0) && (
-                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                  {chatRooms.reduce((total, room) => total + room.unreadCount, 0)}
-                </div>
-              )}
-            </button>
-            {/* Admin Support Button */}
-            {showAdminSupport && user?.role !== 'admin' && (
-              <button
-                onClick={() => setShowAdminSupportModal(true)}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
-                title="Create Admin Support"
-              >
-                <HelpCircle size={16} />
-              </button>
-            )}
-            {/* Minimize Button */}
-            {onMinimize && (
-              <button
-                onClick={onMinimize}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
-                title="Minimize"
-              >
-                —
-              </button>
-            )}
-            {/* Close Button */}
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
-              >
-                <X size={16} />
-              </button>
-            )}
+    <div className="fixed bottom-4 right-4 w-96 max-w-[calc(100vw-2rem)] h-[28rem] bg-gray-100 dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 flex flex-col z-50">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-500 to-green-500 text-white p-4 rounded-t-2xl flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <MessageCircle size={20} />
+          <div>
+            <h3 className="font-semibold text-lg">
+              {initialChatType === 'admin_support'
+                ? 'Support'
+                : initialChatType === 'general'
+                ? 'General Chat'
+                : bookingId
+                ? `Booking #${bookingId.slice(-6)}`
+                : 'Chat'}
+            </h3>
+            <p className="text-sm opacity-90">Chat</p>
           </div>
         </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="p-3 bg-red-50 border-b border-red-200 text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-
-        {/* Current Chat Status */}
-        {currentChat?.type === 'admin_support' && (
-          <div className="p-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center space-x-2">
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    currentChat.supportStatus === 'open'
-                      ? 'bg-green-100 text-green-800'
-                      : currentChat.supportStatus === 'in_progress'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}
-                >
-                  {currentChat.supportStatus || 'open'}
-                </span>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    currentChat.priority === 'urgent'
-                      ? 'bg-red-100 text-red-800'
-                      : currentChat.priority === 'high'
-                      ? 'bg-orange-100 text-orange-800'
-                      : currentChat.priority === 'medium'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}
-                >
-                  {currentChat.priority || 'medium'} priority
-                </span>
-              </div>
-              <span className="text-gray-600 dark:text-gray-300">
-                {currentChat.category?.replace('_', ' ')}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Participants */}
-        {getCurrentParticipants().length > 0 && (
-          <div className="p-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-            <div className="flex items-center space-x-2 text-sm">
-              <Users size={16} className="text-gray-500" />
-              <span className="text-gray-600 dark:text-gray-300">Participants:</span>
-              <div className="flex flex-wrap gap-1">
-                {getCurrentParticipants().map((participant) => (
-                  <span
-                    key={participant.userId}
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      participant.role === 'customer'
-                        ? 'bg-blue-100 text-blue-800'
-                        : participant.role === 'garage'
-                        ? 'bg-green-100 text-green-800'
-                        : participant.role === 'mechanic'
-                        ? 'bg-purple-100 text-purple-800'
-                        : participant.role === 'admin'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {participant.name} {participant.isOnline && <span className="text-green-500">●</span>}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-              <span className="ml-2 text-gray-600 dark:text-gray-300">Loading chat...</span>
-            </div>
-          ) : !currentChat ? (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-              <MessageCircle size={48} className="mx-auto mb-2 opacity-50" />
-              <p>No chat selected</p>
-              <p className="text-sm">Select a chat from the list or create a new one</p>
-              <button
-                onClick={() => setShowChatList(true)}
-                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                View Chats
-              </button>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-              <MessageCircle size={48} className="mx-auto mb-2 opacity-50" />
-              <p>No messages yet</p>
-              <p className="text-sm">Start the conversation!</p>
-            </div>
-          ) : (
-            messages.map((msg, index) => (
-              <div
-                key={msg._id || index}
-                className={`flex ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    msg.senderId === user?.id
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
-                  }`}
-                >
-                  <div className="text-sm font-medium mb-1">
-                    {msg.senderId === user?.id ? 'You' : msg.senderName || 'Unknown'} ({msg.senderRole})
-                  </div>
-                  <div className="text-sm">{msg.content}</div>
-                  <div className="text-xs opacity-70 mt-1">
-                    {new Date(msg.timestamp).toLocaleTimeString()}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-
-          {/* Typing indicators */}
-          {typingUsers.length > 0 && (
-            <div className="flex justify-start">
-              <div className="bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-4 py-2 rounded-lg">
-                <div className="flex items-center space-x-1">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: '0.1s' }}
-                    ></div>
-                    <div
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: '0.2s' }}
-                    ></div>
-                  </div>
-                  <span className="text-sm ml-2">
-                    {typingUsers.map((u) => u.userName).join(', ')} typing...
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-600">
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => {
-                setMessage(e.target.value);
-                handleTyping();
-              }}
-              onKeyPress={handleKeyPress}
-              placeholder={currentChat ? 'Type your message...' : 'Select a chat first...'}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              disabled={sendingMessage || !currentChat}
-            />
+        <div className="flex items-center space-x-2">
+          {showAdminSupport && user?.role !== 'admin' && (
             <button
-              onClick={handleSendMessage}
-              disabled={!message.trim() || sendingMessage || !currentChat}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+              onClick={() => setShowAdminSupportModal(true)}
+              className="p-2 hover:bg-white/20 rounded-full transition-colors duration-200"
+              title="Create Admin Support"
+              aria-label="Create admin support request"
             >
-              <Send size={16} />
-              <span className="hidden sm:inline">{sendingMessage ? 'Sending...' : 'Send'}</span>
+              <HelpCircle size={18} />
             </button>
-          </div>
+          )}
+          {onMinimize && (
+            <button
+              onClick={onMinimize}
+              className="p-2 hover:bg-white/20 rounded-full transition-colors duration-200"
+              title="Minimize"
+              aria-label="Minimize chat window"
+            >
+              <span className="text-lg">—</span>
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-full transition-colors duration-200"
+              title="Close"
+              aria-label="Close chat window"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Chat List Modal */}
-      {showChatList && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-96 max-h-96 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-lg">Your Chats</h3>
-              <button
-                onClick={() => setShowChatList(false)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="max-h-80 overflow-y-auto">
-              {loading ? (
-                <div className="p-4 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                </div>
-              ) : chatRooms.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">No chats available</div>
-              ) : (
-                chatRooms.map((room) => (
-                  <div
-                    key={room.id}
-                    onClick={() => handleSwitchChat(room.id)}
-                    className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
-                      currentChat?.id === room.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">
-                            {room.type === 'admin_support'
-                              ? 'Admin Support'
-                              : room.bookingId
-                              ? `Booking #${room.bookingId.slice(-6)}`
-                              : 'Chat'}
-                          </span>
-                          {room.unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                              {room.unreadCount}
-                            </span>
-                          )}
-                        </div>
-                        {room.lastMessage && (
-                          <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
-                            {room.lastMessage.content}
-                          </p>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(room.updatedAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+      {/* Error Display */}
+      {error && (
+        <div className="p-3 bg-red-50 border-b border-red-200 text-red-700 text-sm">
+          {error}
         </div>
       )}
 
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100 dark:bg-gray-900">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-500"></div>
+            <span className="ml-2 text-gray-600 dark:text-gray-300">Loading chat...</span>
+          </div>
+        ) : (
+          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+            <MessageCircle size={48} className="mx-auto mb-2 opacity-50" />
+            <p>No messages yet</p>
+            <p className="text-sm">Start the conversation!</p>
+          </div>
+        )}
+
+        {typingUsers.length > 0 && (
+          <div className="flex justify-start">
+            <div className="bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-4 py-2 rounded-2xl shadow-md animate-fade-in">
+              <div className="flex items-center space-x-1">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div
+                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                    style={{ animationDelay: '0.1s' }}
+                  ></div>
+                  <div
+                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                    style={{ animationDelay: '0.2s' }}
+                  ></div>
+                </div>
+                <span className="text-sm ml-2">
+                  {typingUsers.map((u) => u.userName).join(', ')} typing...
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Area */}
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900">
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              if (e.target.value.trim()) handleTyping();
+            }}
+            onKeyPress={handleKeyPress}
+            placeholder="Type your message..."
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all duration-200"
+            aria-label="Type your message"
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={!message.trim() || sendingMessage}
+            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-xl transition-all duration-200 hover:scale-105 flex items-center space-x-2"
+            aria-label={sendingMessage ? 'Sending message' : 'Send message'}
+          >
+            <Send size={18} />
+            <span className="hidden sm:inline">{sendingMessage ? 'Sending...' : 'Send'}</span>
+          </button>
+        </div>
+      </div>
+
       {/* Admin Support Modal */}
       {showAdminSupportModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-96 p-6">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-96 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-lg">Create Admin Support</h3>
+              <h3 className="font-semibold text-lg text-blue-600 dark:text-blue-300">Create Support Request</h3>
               <button
                 onClick={() => setShowAdminSupportModal(false)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors duration-200"
+                title="Close"
+                aria-label="Close support request modal"
               >
                 <X size={20} />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Category</label>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Category</label>
                 <select
                   value={adminSupportForm.category}
                   onChange={(e) =>
-                    setAdminSupportForm((prev) => ({ ...prev, category: e.target.value }))
+                    setAdminSupportForm((prev) => ({
+                      ...prev,
+                      category: e.target.value as AdminSupportForm['category'],
+                    }))
                   }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  aria-label="Select support category"
                 >
                   <option value="technical_issue">Technical Issue</option>
                   <option value="booking_issue">Booking Issue</option>
@@ -560,13 +360,37 @@ const ChatBox: React.FC<ChatBoxProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Priority</label>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Support Type</label>
+                <select
+                  value={adminSupportForm.supportType}
+                  onChange={(e) =>
+                    setAdminSupportForm((prev) => ({
+                      ...prev,
+                      supportType: e.target.value as AdminSupportForm['supportType'],
+                    }))
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  aria-label="Select support type"
+                >
+                  <option value="technical">Technical</option>
+                  <option value="billing">Billing</option>
+                  <option value="general">General</option>
+                  <option value="complaint">Complaint</option>
+                  <option value="feedback">Feedback</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Priority</label>
                 <select
                   value={adminSupportForm.priority}
                   onChange={(e) =>
-                    setAdminSupportForm((prev) => ({ ...prev, priority: e.target.value as any }))
+                    setAdminSupportForm((prev) => ({
+                      ...prev,
+                      priority: e.target.value as AdminSupportForm['priority'],
+                    }))
                   }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  aria-label="Select priority"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -575,37 +399,40 @@ const ChatBox: React.FC<ChatBoxProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Description</label>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Description</label>
                 <textarea
                   value={adminSupportForm.description}
                   onChange={(e) =>
                     setAdminSupportForm((prev) => ({ ...prev, description: e.target.value }))
                   }
-                  placeholder="Please describe your issue or question..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="Describe your issue or question..."
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                   rows={4}
+                  aria-label="Enter support request description"
                 />
               </div>
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowAdminSupportModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
+                  aria-label="Cancel support request"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreateAdminSupport}
-                  disabled={!adminSupportForm.description.trim() || loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+                  disabled={!adminSupportForm.description.trim()}
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:bg-gray-400 transition-all duration-200 hover:scale-105"
+                  aria-label="Create support request"
                 >
-                  {loading ? 'Creating...' : 'Create Support'}
+                  Create Support
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

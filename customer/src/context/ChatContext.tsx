@@ -9,32 +9,32 @@ import React, {
 import { useAuth } from './AuthContext';
 import { useSocket } from '../socket';
 import type {ReactNode} from "react"
-import type{ Message, ChatSession } from '../types';
+import type{ Message } from '../types';
 import toast from 'react-hot-toast';
 
-// Cookie utility functions
-const cookies = {
-  getItem: (name: string): string | null => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) {
-      const cookieValue = parts.pop()?.split(';').shift();
-      return cookieValue || null;
-    }
-    return null;
-  },
-  setItem: (name: string, value: string, days: number = 7): void => {
-    const expires = new Date();
-    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
-    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
-  },
-  removeItem: (name: string): void => {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-  }
-};
+// Cookie utility functions (currently unused)
+// const cookies = {
+//   getItem: (name: string): string | null => {
+//     const value = `; ${document.cookie}`;
+//     const parts = value.split(`; ${name}=`);
+//     if (parts.length === 2) {
+//       const cookieValue = parts.pop()?.split(';').shift();
+//       return cookieValue || null;
+//     }
+//     return null;
+//   },
+//   setItem: (name: string, value: string, days: number = 7): void => {
+//     const expires = new Date();
+//     expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+//     document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+//   },
+//   removeItem: (name: string): void => {
+//     document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+//   }
+// };
 
 // API service - using cookies for token storage
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://backend-3lsi.onrender.com/api';
 
 const apiService = {
   get: async (url: string) => {
@@ -209,22 +209,20 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Load user's chat rooms
       loadChatRooms();
     }
-  }, [user, isConnected]);
+  }, [user?.id, isConnected]); // Only depend on user.id and isConnected
 
   // Socket event listeners
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    // Message received
-    const handleReceiveMessage = (data: { roomId: string } & Message) => {
-      const { roomId, ...message } = data;
-      
-      // Add message to current chat if it matches
+    const handleReceiveMessage = (message: any) => {
+      const roomId = (message as any).roomId || currentChat?.id;
+      if (!roomId) return;
+
       if (currentChat?.id === roomId) {
         setMessages(prev => [...prev, message]);
       }
-      
-      // Update chat room with new message
+
       setChatRooms(prev => prev.map(room => {
         if (room.id === roomId) {
           return {
@@ -237,64 +235,37 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return room;
       }));
 
-      // Show notification for new messages not from current user
       if (message.senderId !== user?.id && currentChat?.id !== roomId) {
-        toast.success(`New message from ${message.senderName}`);
+        toast.success(`New message from ${message.senderName || 'User'}`);
       }
     };
 
-    // User typing
-    const handleUserTyping = ({ userId, userName, userRole }: { userId: string; userName: string; userRole: string }) => {
-      if (userId !== user?.id) {
-        setTypingUsers(prev => {
-          const existing = prev.find(u => u.userId === userId);
-          if (existing) return prev;
-          return [...prev, { userId, userName, userRole }];
-        });
+    const handleTyping = ({ roomId, room, userId, userRole, userName }: any) => {
+      const r = roomId || room;
+      if (userId !== user?.id && currentChat?.id === r) {
+        setTypingUsers(prev => (prev.some(u => u.userId === userId) ? prev : [...prev, { userId, userName, userRole }]));
       }
     };
 
-    // User stopped typing
-    const handleUserStoppedTyping = ({ userId }: { userId: string }) => {
-      setTypingUsers(prev => prev.filter(u => u.userId !== userId));
-    };
-
-    // User joined chat
-    const handleUserJoined = ({ userId, userName, userRole }: { userId: string; userName: string; userRole: string }) => {
-      if (userId !== user?.id) {
-        toast.success(`${userName} joined the chat`);
+    const handleStopTyping = ({ roomId, room, userId }: any) => {
+      const r = roomId || room;
+      if (currentChat?.id === r) {
+        setTypingUsers(prev => prev.filter(u => u.userId !== userId));
       }
     };
 
-    // User left chat
-    const handleUserLeft = ({ userId, userName }: { userId: string; userName: string }) => {
-      if (userId !== user?.id) {
-        toast.success(`${userName} left the chat`);
-      }
-    };
-
-    // Error handling
-    const handleError = (error: { message: string; details?: string }) => {
-      toast.error(error.message);
-      console.error('Chat error:', error);
-      setError(error.message);
-    };
-
-    // Socket event listeners
     socket.on('receiveMessage', handleReceiveMessage);
-    socket.on('userTyping', handleUserTyping);
-    socket.on('userStoppedTyping', handleUserStoppedTyping);
-    socket.on('userJoined', handleUserJoined);
-    socket.on('userLeft', handleUserLeft);
-    socket.on('error', handleError);
+    socket.on('userTyping', handleTyping);
+    socket.on('userStoppedTyping', handleStopTyping);
+    socket.on('typing', handleTyping);
+    socket.on('stopTyping', handleStopTyping);
 
     return () => {
       socket.off('receiveMessage', handleReceiveMessage);
-      socket.off('userTyping', handleUserTyping);
-      socket.off('userStoppedTyping', handleUserStoppedTyping);
-      socket.off('userJoined', handleUserJoined);
-      socket.off('userLeft', handleUserLeft);
-      socket.off('error', handleError);
+      socket.off('userTyping', handleTyping);
+      socket.off('userStoppedTyping', handleStopTyping);
+      socket.off('typing', handleTyping);
+      socket.off('stopTyping', handleStopTyping);
     };
   }, [socket, isConnected, user, currentChat]);
 
@@ -311,7 +282,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to load chat rooms';
       setError(errorMessage);
-      toast.error(errorMessage);
+      setChatRooms([]); // Set empty array on error to prevent infinite loading
       console.error('Failed to load chat rooms:', error);
     } finally {
       setLoading(false);
@@ -324,8 +295,94 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     const room = chatRooms.find(r => r.id === roomId);
     if (!room) {
-      toast.error('Chat room not found');
-      return;
+      // If room doesn't exist in chatRooms, try to create it
+      console.log(`Chat room ${roomId} not found in loaded rooms, attempting to create...`);
+      
+      // For booking rooms, try to create the chat session
+      if (roomId.startsWith('booking_')) {
+        try {
+          setLoading(true);
+          setError(null);
+
+          // Leave current chat if any
+          if (currentChat) {
+            socket.emit('leaveRoom', { roomId: currentChat.id });
+          }
+
+          // Join new chat room (this will create the session on the server)
+          if (user?.id && user?.role) {
+            socket.emit('joinRoom', {
+              room: roomId,
+              userId: user.id,
+              senderRole: user.role,
+              garageId: user.garageId || null
+            });
+          } else {
+            console.error('Cannot join room: user data missing', { userId: user?.id, role: user?.role });
+            return;
+          }
+
+          // Load messages for the chat
+          const response = await chatAPI.getChatMessages(roomId);
+          const { messages: chatMessages = [] } = response;
+
+          // Create a temporary room object for the current chat
+          const tempRoom = {
+            id: roomId,
+            type: 'booking' as const,
+            bookingId: roomId.replace('booking_', ''),
+            participants: [],
+            lastMessage: null,
+            unreadCount: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+
+          setCurrentChat(tempRoom);
+          setMessages(chatMessages);
+          setTypingUsers([]);
+
+          // Reload chat rooms to get the newly created room
+          await loadChatRooms();
+
+        } catch (error: any) {
+          const blocked = typeof error?.message === 'string' && /Booking chat available after acceptance/i.test(error.message);
+          if (blocked) {
+            // Try support_<bookingId> room for pre-acceptance
+            const supportRoom = roomId.replace('booking_', 'support_');
+            socket.emit('joinRoom', {
+              room: supportRoom,
+              userId: user.id,
+              senderRole: user.role,
+            });
+            const response2 = await chatAPI.getChatMessages(supportRoom);
+            const { messages: supportMsgs = [] } = response2;
+            const tempRoom2 = {
+              id: supportRoom,
+              type: 'support' as const,
+              bookingId: roomId.replace('booking_', ''),
+              participants: [],
+              lastMessage: null,
+              unreadCount: 0,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            setCurrentChat(tempRoom2);
+            setMessages(supportMsgs);
+            setTypingUsers([]);
+            await loadChatRooms();
+            toast.success('Opened support chat with admin for this booking');
+          } else {
+            console.error('Failed to create chat room:', error);
+          }
+        } finally {
+          setLoading(false);
+        }
+        return;
+      } else {
+        toast.error('Chat room not found');
+        return;
+      }
     }
 
     setLoading(true);
@@ -338,16 +395,21 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Join new chat room
-      socket.emit('joinRoom', {
-        room: roomId,
-        userId: user.id,
-        senderRole: user.role,
-        garageId: user.garageId
-      });
+      if (user?.id && user?.role) {
+        socket.emit('joinRoom', {
+          room: roomId,
+          userId: user.id,
+          senderRole: user.role,
+          garageId: user.garageId || null
+        });
+      } else {
+        console.error('Cannot join room: user data missing', { userId: user?.id, role: user?.role });
+        return;
+      }
 
       // Load messages for the chat
       const response = await chatAPI.getChatMessages(roomId);
-      const { messages: chatMessages = [], chatInfo } = response;
+      const { messages: chatMessages = [] } = response;
 
       setCurrentChat(room);
       setMessages(chatMessages);
@@ -359,7 +421,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ));
 
     } catch (error: any) {
-      const errorMessage = error.message || 'Failed to join chat';
+      const blocked = typeof error?.message === 'string' && /Booking chat available after acceptance/i.test(error.message);
+      const errorMessage = blocked ? 'Booking chat opens after garage accepts. Use Admin Support for now.' : (error.message || 'Failed to join chat');
       setError(errorMessage);
       toast.error(errorMessage);
       console.error('Failed to join chat:', error);
@@ -381,17 +444,19 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Send a message
   const sendMessage = useCallback(async (content: string, messageType: 'text' | 'file' | 'location' = 'text') => {
-    if (!user || !currentChat || !content.trim()) return;
-    
+    if (!user || !currentChat || !content.trim() || !socket) return;
     setSendingMessage(true);
     setError(null);
-
     try {
+      socket.emit('sendMessage', {
+        room: currentChat.id,
+        content: content.trim(),
+        sender: user.id,
+        senderRole: user.role,
+        timestamp: new Date().toISOString(),
+        messageType
+      });
       await chatAPI.sendMessage(currentChat.id, content.trim(), messageType);
-      
-      // The message will be received via socket and added to state
-      // No need to optimistically update here since the backend handles it
-      
     } catch (error: any) {
       const errorMessage = error.message || 'Failed to send message';
       setError(errorMessage);
@@ -400,7 +465,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setSendingMessage(false);
     }
-  }, [user, currentChat]);
+  }, [user, currentChat, socket]);
 
   // Create admin support chat
   const createAdminSupportChat = useCallback(async (data: {
@@ -446,25 +511,26 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!socket || !currentChat || isTyping) return;
     
     setIsTyping(true);
-    socket.emit('typing', { roomId: currentChat.id });
-  }, [socket, currentChat, isTyping]);
+    socket.emit('typing', { 
+      room: currentChat.id, 
+      userId: user?.id 
+    });
+  }, [socket, currentChat, isTyping, user?.id]);
 
   const stopTyping = useCallback(() => {
     if (!socket || !currentChat || !isTyping) return;
     
     setIsTyping(false);
-    socket.emit('stopTyping', { roomId: currentChat.id });
-  }, [socket, currentChat, isTyping]);
+    socket.emit('stopTyping', { 
+      room: currentChat.id, 
+      userId: user?.id 
+    });
+  }, [socket, currentChat, isTyping, user?.id]);
 
   // Expose typing functions for use in components
   useEffect(() => {
-    const chatContext = {
-      startTyping,
-      stopTyping
-    };
-    
     // You can attach these to window for global access if needed
-    // window.chatTyping = chatContext;
+    // window.chatTyping = { startTyping, stopTyping };
   }, [startTyping, stopTyping]);
 
   const value: ChatContextType = {

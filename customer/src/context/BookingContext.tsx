@@ -12,7 +12,7 @@ import { useAuth } from './AuthContext';
 import type {ReactNode} from "react"
 
 // Base URI for API and Socket
-const BASE_URI = 'http://localhost:5000';
+const BASE_URI = 'https://backend-3lsi.onrender.com';
 
 // Types (adjust as necessary)
 interface Booking {

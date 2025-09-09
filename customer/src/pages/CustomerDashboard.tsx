@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, LogOut, Home, SendHorizonal, Bell, MessageSquare, MapPin } from 'lucide-react';
+import { User, LogOut, Home, SendHorizonal, Bell, MessageSquare, MapPin ,Calculator,Wrench} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { notificationSound } from '../util/notificationSound';
@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 import socket from '../socket';
 import LocationSelector from '../ServiceBooking/SelectLocation';
-import ChatBox from '../ChatComponent/ChatBox';
+// Chat removed per requirement
 import RealTimeTracker from '../tracking/RealTimeTracker';
 import LiveTrackingMap from '../tracking/LiveTrackingMap';
 
@@ -136,7 +136,7 @@ const CustomerDashboard: React.FC = () => {
   useEffect(() => {
     const loadNotifications = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/notifications', {
+        const response = await fetch('https://backend-3lsi.onrender.com/api/notifications', {
           credentials: 'include'
         });
         if (response.ok) {
@@ -146,7 +146,7 @@ const CustomerDashboard: React.FC = () => {
               id: n._id,
               type: n.type,
               message: n.message,
-              timestamp: new Date(n.timestamp),
+              timestamp: new Date(n.timestamp || n.createdAt),
               payload: n.payload,
               read: n.read
             })),
@@ -262,6 +262,19 @@ const CustomerDashboard: React.FC = () => {
     socket.on('booking:assigned', handleBookingAssigned);
     socket.on('booking:completed', handleBookingCompleted);
     socket.on('booking:cancelled', handleBookingCancelled);
+    socket.on('notification', (data: any) => {
+      setNotifications(prev => [
+        {
+          id: data.id || `${data.type}-${Date.now()}`,
+          type: data.type,
+          message: data.message,
+          timestamp: new Date(data.timestamp),
+          payload: data.payload,
+          read: data.read || false
+        },
+        ...prev
+      ]);
+    });
     // --- End real-time booking events ---
 
     return () => {
@@ -270,6 +283,7 @@ const CustomerDashboard: React.FC = () => {
       socket.off('booking:assigned', handleBookingAssigned);
       socket.off('booking:completed', handleBookingCompleted);
       socket.off('booking:cancelled', handleBookingCancelled);
+      socket.off('notification');
     };
   }, [waitingForApproval, navigate]);
 
@@ -459,14 +473,14 @@ const CustomerDashboard: React.FC = () => {
           onClick={() => setShowNotifications((prev) => !prev)}
           aria-label="Show notifications"
         >
-          <Bell className="h-5  w-5 text-gray-700 dark:text-gray-200" />
+        
           {notifications.some(n => !n.read) && (
             <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
               {notifications.filter(n => !n.read).length}
             </span>
           )}
         </button>
-        <button onClick={() => setShowMenu(!showMenu)} className="bg-white dark:bg-gray-800 rounded-full p-2 shadow">
+        <button onClick={() => setShowMenu(!showMenu)} className="bg-white dark:bg-gray-800 rounded-full p-2 shadow mb-10">
           <User size={20} />
         </button>
         
@@ -477,17 +491,15 @@ const CustomerDashboard: React.FC = () => {
               <Home className="w-4 h-4 mr-2" /> Home
             </button>
             <button className="flex items-center w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm" onClick={() => setView('dashboard')}>
-              <User className="w-4 h-4 mr-2" /> Dashboard
+              <Calculator className="w-4 h-4 mr-2" /> Dashboard
             </button>
             <button className="flex items-center w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm" onClick={() => setView('profile')}>
               <User className="w-4 h-4 mr-2" /> Profile
             </button>
             <button className="flex items-center w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm" onClick={() => setView('book')}>
-              <User className="w-4 h-4 mr-2" /> Book Service
+              <Wrench className="w-4 h-4 mr-2" /> Book Service
             </button>
-            <button className="flex items-center w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm" onClick={() => setView('chat')}>
-              <User className="w-4 h-4 mr-2" /> Chat
-            </button>
+           
             <button
               className="flex items-center w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500 text-sm"
               onClick={() => {
@@ -503,7 +515,7 @@ const CustomerDashboard: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 sm:gap-4 border-b border-gray-200 dark:border-gray-700">
-        {['dashboard', 'profile', 'book', 'chat'].map((tab) => (
+        {['dashboard', 'profile', 'book'].map((tab) => (
           <button
             key={tab}
             className={`pb-2 px-3 sm:px-4 font-semibold text-sm sm:text-base ${view === tab ? 'border-b-2 border-green-500 text-green-500' : 'text-gray-500'}`}
@@ -539,9 +551,10 @@ const CustomerDashboard: React.FC = () => {
                 <p><strong>Type:</strong> {upcomingService.type || ''}</p>
                 <p><strong>Garage:</strong> {upcomingService.garage || ''}</p>
                 <p><strong>Status:</strong> <span className={getStatusColor(upcomingService.status)}>{upcomingService.status || 'N/A'}</span></p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-2 items-center">
+                  {/* Phone contact details */}
                   <span className="text-gray-500 text-sm px-3 py-1">
-                    Use chat button for messaging
+                    Garage Phone: {user?.role === 'customer' ? (selectedService ? '' : '') : ''}
                   </span>
                   <a
                     href={upcomingService.location ? `https://www.google.com/maps?q=${upcomingService.location.lat},${upcomingService.location.lon}` : '#'}
@@ -647,19 +660,11 @@ const CustomerDashboard: React.FC = () => {
                 <p><strong>Type:</strong> {selectedService.type}</p>
                 <p><strong>Bike:</strong> {selectedService.bike}</p>
                 <p><strong>Status:</strong> <span className={getStatusColor(selectedService.status)}>{selectedService.status}</span></p>
-                <p><strong>Details:</strong> {selectedService.details}</p>
+                <p><strong>Details:</strong> {selectedService?.details}</p>
                 
                 {/* Action Buttons */}
                 <div className="flex space-x-2 mt-4">
-                  <button
-                    onClick={() => {
-                      setSelectedService(selectedService);
-                      setChatOpen(true);
-                    }}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition-colors"
-                  >
-                    💬 Chat
-                  </button>
+                 
                   
                   {/* Real-time Tracking for active bookings */}
                   {['confirmed', 'assigned', 'on-way', 'arrived', 'working'].includes(selectedService.status) && (
@@ -741,9 +746,7 @@ const CustomerDashboard: React.FC = () => {
                 />
                 <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">{customer?.name || user?.name || 'N/A'}</h3>
                 <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">{customer?.email || user?.email || 'N/A'}</p>
-                <button className="mt-4 text-primary-600 hover:text-primary-700 text-xs sm:text-sm">
-                  Change Photo
-                </button>
+             
               </div>
             </div>
             <div className="sm:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 sm:p-6">
@@ -982,129 +985,12 @@ const CustomerDashboard: React.FC = () => {
         </div>
       )}
 
-      {view === 'chat' && (
-        <div className="space-y-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Chat</h1>
-          <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl max-w-2xl mx-auto text-center">
-            <div className="mb-6">
-              <MessageSquare size={64} className="mx-auto text-blue-500 mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                Real-time Chat Available
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Use the chat button in the bottom right corner to access real-time messaging with garages, mechanics, and support.
-              </p>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Features:</h4>
-                <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                  <li>• Real-time messaging with booking participants</li>
-                  <li>• Support chat with admin team</li>
-                  <li>• Typing indicators and read receipts</li>
-                  <li>• Message history and notifications</li>
-                </ul>
-              </div>
-              
-              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-                <h4 className="font-medium text-green-900 dark:text-green-100 mb-2">How to use:</h4>
-                <p className="text-sm text-green-800 dark:text-green-200">
-                  Click the chat button (💬) in the bottom right corner of your screen to open the chat interface.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Chat tab removed */}
       <div className="relative flex items-center space-x-2">
 
-        {showNotifications && (
-          <div className=" right-0  w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <span className="font-semibold text-gray-900 dark:text-white">Notifications</span>
-                              <button
-                  className="text-xs text-blue-600 hover:underline"
-                  onClick={async () => {
-                    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                    
-                    // Mark all as read in database
-                    try {
-                      await fetch('http://localhost:5000/api/notifications/read-all', {
-                        method: 'PUT',
-                        credentials: 'include'
-                      });
-                    } catch (error) {
-                      console.error('Failed to mark all notifications as read:', error);
-                    }
-                  }}
-                >
-                  Mark all as read
-                </button>
-            </div>
-            <div className="max-h-80 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700">
-              {notifications.length === 0 ? (
-                <div className="p-4 text-gray-500 text-center">No notifications</div>
-              ) : (
-                notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className={`p-4 cursor-pointer ${n.read ? 'bg-gray-50 dark:bg-gray-900' : 'bg-blue-50 dark:bg-blue-900/30'}`}
-                    onClick={async () => {
-                      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
-                      
-                      // Mark as read in database
-                      try {
-                        await fetch(`http://localhost:5000/api/notifications/${n.id}/read`, {
-                          method: 'PUT',
-                          credentials: 'include'
-                        });
-                      } catch (error) {
-                        console.error('Failed to mark notification as read:', error);
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-gray-800 dark:text-gray-100">{n.message}</span>
-                      <span className="text-xs text-gray-400 ml-2">{n.timestamp.toLocaleTimeString()}</span>
-                    </div>
-                    {n.payload && (
-                      <div className="text-xs text-gray-500 mt-1">
-                        {n.type === 'booking:accepted' && n.payload.garageName && (
-                          <span>Garage: {n.payload.garageName}</span>
-                        )}
-                        {n.type === 'booking:assigned' && n.payload.mechanicName && (
-                          <span>Mechanic: {n.payload.mechanicName}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>  
-          </div>
-        )}
       </div>
 
-      {/* Chat Component */}
-      {selectedService && (
-        <ChatBox
-          bookingId={selectedService._id}
-          isOpen={chatOpen}
-          onClose={() => setChatOpen(false)}
-        />
-      )}
-      
-      {/* Chat Toggle Button */}
-      {selectedService && (
-        <button
-          onClick={() => setChatOpen(!chatOpen)}
-          className="fixed bottom-4 right-4 z-50 bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-colors"
-          title="Open Chat"
-        >
-          💬
-        </button>
-      )}
+      {/* Chat removed */}
 
       {/* Live Tracking Component */}
       {trackingOpen && selectedBookingForTracking && (

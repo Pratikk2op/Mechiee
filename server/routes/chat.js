@@ -44,14 +44,17 @@ router.get('/rooms', auth, async ( req,res) => {
               }
             });
             await chatSession.save();
+            
           }
           
           const garage = await Garage.findById(booking.garage);
           const mechanic = booking.mechanic ? await Mechanic.findById(booking.mechanic) : null;
           
+          const isAcceptedStatus = ['accepted', 'assigned', 'completed'].includes(booking.status);
+          const roomId = isAcceptedStatus ? `booking_${booking._id}` : `support_${booking._id}`;
           chatRooms.push({
-            id: `booking_${booking._id}`,
-            type: 'booking',
+            id: roomId,
+            type: isAcceptedStatus ? 'booking' : 'support',
             bookingId: booking._id.toString(),
             participants: [
               {
@@ -154,6 +157,8 @@ router.get('/rooms', auth, async ( req,res) => {
           const customer = await Customer.findById(booking.customer);
           const mechanic = booking.mechanic ? await Mechanic.findById(booking.mechanic) : null;
           
+          const isAcceptedStatus = ['accepted', 'assigned', 'completed'].includes(booking.status);
+          if (!isAcceptedStatus) continue;
           chatRooms.push({
             id: `booking_${booking._id}`,
             type: 'booking',
@@ -263,6 +268,8 @@ router.get('/rooms', auth, async ( req,res) => {
           const customer = await Customer.findById(booking.customer);
           const garage = await Garage.findById(booking.garage);
           
+          const isAcceptedStatus = ['accepted', 'assigned', 'completed'].includes(booking.status);
+          if (!isAcceptedStatus) continue;
           chatRooms.push({
             id: `booking_${booking._id}`,
             type: 'booking',
@@ -392,10 +399,15 @@ router.get('/rooms', auth, async ( req,res) => {
           });
         }
 
+        // Prefer support_<bookingId> style for pre-acceptance chats (if tied to booking)
+        const roomId = chat.bookingId ? `support_${chat.bookingId}` : `admin_support_${chat._id}`;
+        const type = chat.bookingId ? 'support' : 'admin_support';
+
         chatRooms.push({
-          id: `admin_support_${chat._id}`,
-          type: 'admin_support',
+          id: roomId,
+          type,
           chatId: chat._id.toString(),
+          bookingId: chat.bookingId ? chat.bookingId.toString() : undefined,
           participants,
           lastMessage: chat.lastMessage,
           unreadCount: chat.messages.filter(msg => 
@@ -455,9 +467,21 @@ router.get('/:roomId/messages', auth, async (req, res) => {
         });
         await chatSession.save();
       }
-    } else if (roomId.startsWith('admin_support_')) {
-      const chatId = roomId.replace('admin_support_', '');
-      chatSession = await ChatSession.findById(chatId);
+    } else if (roomId.startsWith('support_')) {
+      const bookingId = roomId.replace('support_', '');
+      // Pre-acceptance customer-admin support session
+      chatSession = await ChatSession.findOne({ bookingId, isAdminChat: true });
+      if (!chatSession) {
+        // Create ephemeral support session until booking accepted
+        chatSession = new ChatSession({
+          bookingId,
+          isAdminChat: true,
+          title: `Support for booking #${bookingId.toString().slice(-6)}`,
+          messages: [],
+          permissions: { canSendMessage: true, canSendFiles: true, canSendLocation: false }
+        });
+        await chatSession.save();
+      }
     }
 
     if (!chatSession) {

@@ -68,7 +68,7 @@ const Navbar: React.FC = () => {
                     <LogOut size={16} /> Logout
                   </button>
                   <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700">
-                    <ThemeToggle />
+                    {/* <ThemeToggle /> */}
                   </div>
                 </div>
               )}

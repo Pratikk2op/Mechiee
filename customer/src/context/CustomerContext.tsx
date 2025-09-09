@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const BASE_URI = 'http://localhost:5000';
+const BASE_URI = 'https://backend-3lsi.onrender.com';
 
 interface Customer {
   _id: string;

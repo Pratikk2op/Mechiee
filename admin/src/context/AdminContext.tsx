@@ -29,6 +29,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Error fetching current user:', error);
         setUser(null);
+        // Don't show error for 401 - user just needs to login
+        if (error instanceof Error && !error.message.includes('401')) {
+          console.error('Non-auth error:', error);
+        }
       } finally {
         setLoading(false);
       }

@@ -7,7 +7,8 @@ const notificationSchema = new mongoose.Schema({
   message: { type: String, required: true },
   payload: { type: Object, default: {} },
   read: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }  // Use 'createdAt'
+  timestamp: { type: Date, default: Date.now },  // Use 'timestamp' for consistency
+  createdAt: { type: Date, default: Date.now }  // Keep 'createdAt' for TTL
 });
 
 // Set the TTL index

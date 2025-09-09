@@ -38,7 +38,7 @@ const ServiceBooking: React.FC = () => {
 
       setIsLoadingAddresses(true);
       try {
-        const response = await fetch('http://localhost:5000/api/customers', {
+        const response = await fetch('https://backend-3lsi.onrender.com/api/customers', {
           method: 'GET',
           credentials: 'include',
         });
@@ -122,7 +122,7 @@ const ServiceBooking: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/bookings/book', {
+      const response = await fetch('https://backend-3lsi.onrender.com/api/bookings/book', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

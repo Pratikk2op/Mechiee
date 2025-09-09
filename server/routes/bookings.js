@@ -13,21 +13,41 @@ import mongoose from 'mongoose';
 const router = express.Router();
 
 // Helper function to send notifications via socket
-const sendNotificationViaSocket = (io, { userId, role, type, message, payload = {} }) => {
+const sendNotificationViaSocket = async (io, { userId, role, type, message, payload = {} }) => {
   try {
+    // Import Notification model dynamically to avoid circular dependency
+    const { default: Notification } = await import('../models/Notification.js');
+    
+    // Create notification in database
+    const notification = new Notification({
+      user: userId,
+      role: role || 'customer', // Default role if not specified
+      type,
+      message,
+      payload,
+      read: false
+    });
+    
+    await notification.save();
+    
+    // Emit to socket
     if (userId) {
       io.to(userId.toString()).emit('notification', { 
+        id: notification._id,
         type, 
         message, 
         payload, 
-        timestamp: new Date() 
+        timestamp: new Date(),
+        read: false
       });
     } else if (role) {
       io.to(role).emit('notification', { 
+        id: notification._id,
         type, 
         message, 
         payload, 
-        timestamp: new Date() 
+        timestamp: new Date(),
+        read: false
       });
     }
   } catch (err) {
@@ -104,7 +124,7 @@ router.post('/reject', auth, authorize('garage'), async (req, res) => {
     // Notify customer about rejection (optional)
     const customerDoc = await Customer.findById(booking.customer);
     if (customerDoc && customerDoc.user) {
-      sendNotificationViaSocket(io, {
+      await sendNotificationViaSocket(io, {
         userId: customerDoc.user,
         type: 'booking:rejected',
         message: `Your booking was rejected by ${garage.garageName}`,
@@ -194,6 +214,7 @@ router.post('/book', auth, authorize('customer'), async (req, res) => {
 
     // Emit new booking request and send notification to each nearby garage owner
     for (const garage of nearbyGarages) {
+      // Emit to individual garage socket
       io.to(garage._id.toString()).emit('newBookingRequest', {
         bookingId: booking._id,
         customerId: customer._id,
@@ -209,7 +230,23 @@ router.post('/book', auth, authorize('customer'), async (req, res) => {
         location: { lat, lon },
       });
 
-      sendNotificationViaSocket(io, {
+      // Also emit to garage room for real-time updates
+      io.to('garage').emit('newBookingRequest', {
+        bookingId: booking._id,
+        customerId: customer._id,
+        customerName: name,
+        brand,
+        model,
+        bikeNumber,
+        serviceType,
+        scheduledDate: date,
+        slot,
+        address,
+        description,
+        location: { lat, lon },
+      });
+
+      await sendNotificationViaSocket(io, {
         userId: garage.userId,
         type: 'booking:new',
         message: `New booking request from ${name}`,
@@ -225,7 +262,7 @@ router.post('/book', auth, authorize('customer'), async (req, res) => {
 
 
     // Notify customer that booking request was sent
-    sendNotificationViaSocket(io, {
+    await sendNotificationViaSocket(io, {
       userId: req.user.id,
       type: 'booking:created',
       message: 'Your booking request has been sent to nearby garages.',
@@ -233,7 +270,7 @@ router.post('/book', auth, authorize('customer'), async (req, res) => {
     });
 
     // Optionally, notify admin
-    sendNotificationViaSocket(io, {
+    await sendNotificationViaSocket(io, {
       role: 'admin',
       type: 'booking:created',
       message: `A new booking was created by ${name}`,
@@ -305,7 +342,7 @@ router.post('/accept', auth, authorize('garage'), async (req, res) => {
     const customerDoc = await Customer.findById(booking.customer);
     if (customerDoc && customerDoc.user) {
       // Notify customer about acceptance
-      sendNotificationViaSocket(io, {
+      await sendNotificationViaSocket(io, {
         userId: customerDoc.user,
         type: 'booking:accepted',
         message: `Your booking was accepted by ${garage.garageName}`,
@@ -317,7 +354,7 @@ router.post('/accept', auth, authorize('garage'), async (req, res) => {
     const mechanicDoc = await Mechanic.findById(mechanicId);
     if (mechanicDoc && mechanicDoc.userId) {
       // Notify mechanic about assignment
-      sendNotificationViaSocket(io, {
+      await sendNotificationViaSocket(io, {
         userId: mechanicDoc.userId,
         type: 'booking:assigned',
         message: 'You have been assigned a new job.',
@@ -326,7 +363,7 @@ router.post('/accept', auth, authorize('garage'), async (req, res) => {
     }
 
     // Notify garage about successful acceptance
-    sendNotificationViaSocket(io, {
+    await sendNotificationViaSocket(io, {
       userId: garage.userId,
       type: 'booking:accepted',
       message: `You accepted booking ${booking._id}`,
@@ -334,7 +371,7 @@ router.post('/accept', auth, authorize('garage'), async (req, res) => {
     });
 
     // Optionally notify admin
-    sendNotificationViaSocket(io, {
+    await sendNotificationViaSocket(io, {
       role: 'admin',
       type: 'booking:accepted',
       message: `Booking ${booking._id} was accepted by ${garage.garageName}`,
@@ -386,8 +423,8 @@ router.get('/', auth, async (req, res) => {
     
     const bookings = await Booking.find(filter)
       .populate('customer', 'name phone')
-      .populate('garage', 'garageName')
-      .populate('mechanic', 'name')
+      .populate('garage', 'garageName phone userId')
+      .populate('mechanic', 'name phone user userId')
       .sort({ createdAt: -1 });
     
     res.json(bookings);
@@ -396,6 +433,42 @@ router.get('/', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+router.get("/mechanic", auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const mechanic = await Mechanic.findOne({ userId });
+
+    if (!mechanic) {
+      return res.json({
+        success: false,
+        message: "No mechanic found",
+      });
+    }
+
+    // Use mechanic._id for filtering
+    const bookings = await Booking.find({ mechanic: mechanic._id });
+    const pendingBookings = await Booking.find({
+      mechanic: mechanic._id,
+      status: "pending",
+    });
+
+    return res.json({
+      success: true,
+      message: "Mechanic data found",
+      bookings,
+      pendingBookings,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
+
+
+
 /**
  * PUT /:id/status
  * Update booking status & optionally mechanic assignment
@@ -433,7 +506,7 @@ router.put('/:id/status', auth, async (req, res) => {
       // Notify customer about completion
       const customerDoc = await Customer.findById(booking.customer);
       if (customerDoc && customerDoc.user) {
-        sendNotificationViaSocket(io, {
+        await sendNotificationViaSocket(io, {
           userId: customerDoc.user,
           type: 'booking:completed',
           message: 'Your service has been completed! Please rate your experience.',
@@ -444,7 +517,7 @@ router.put('/:id/status', auth, async (req, res) => {
       // Notify garage about completion
       const garageDoc = await Garage.findById(booking.garage);
       if (garageDoc && garageDoc.userId) {
-        sendNotificationViaSocket(io, {
+        await sendNotificationViaSocket(io, {
           userId: garageDoc.userId,
           type: 'booking:completed',
           message: `Booking ${booking._id} has been completed.`,
@@ -455,7 +528,7 @@ router.put('/:id/status', auth, async (req, res) => {
       // Notify customer about cancellation
       const customerDoc = await Customer.findById(booking.customer);
       if (customerDoc && customerDoc.user) {
-        sendNotificationViaSocket(io, {
+        await sendNotificationViaSocket(io, {
           userId: customerDoc.user,
           type: 'booking:cancelled',
           message: 'Your booking has been cancelled.',
@@ -466,7 +539,7 @@ router.put('/:id/status', auth, async (req, res) => {
       // Notify garage about cancellation
       const garageDoc = await Garage.findById(booking.garage);
       if (garageDoc && garageDoc.userId) {
-        sendNotificationViaSocket(io, {
+        await sendNotificationViaSocket(io, {
           userId: garageDoc.userId,
           type: 'booking:cancelled',
           message: `Booking ${booking._id} has been cancelled.`,

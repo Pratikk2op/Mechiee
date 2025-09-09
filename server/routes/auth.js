@@ -107,7 +107,7 @@ router.post('/login', async (req, res) => {
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: 30 * 24 * 60 * 60 * 1000
     });
 
@@ -333,6 +333,7 @@ router.post('/mechanic/signup', async (req, res) => {
 console.log('')
    const assigned=await Garage.findById(assignedGarage)
   console.log(assigned)
+  console.log(req.body)
    if(!assigned){
     return res.status(400).json({success:false,message:'Invalid Garage Id'})
    }

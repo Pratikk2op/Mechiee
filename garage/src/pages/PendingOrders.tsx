@@ -242,7 +242,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
                       </p>
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Phone className="w-4 h-4" />
-                        <span>{booking.customer?.phone || 'N/A'}</span>
+                        <span>{booking.mobile || 'N/A'}</span>
                       </div>
                     </div>
                   </div>
@@ -323,13 +323,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
                     </button>
 
                     {/* Chat Button */}
-                    <button
-                      onClick={() => setSelectedBookingId(booking._id)}
-                      className="flex items-center gap-2 px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      Chat
-                    </button>
+                  
                   </div>
                 </div>
               </motion.div>

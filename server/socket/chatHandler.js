@@ -2,27 +2,6 @@ import { Server } from 'socket.io';
 import { ChatSession } from '../models/Chat.js';
 import Booking from '../models/Booking.js';
 import User from '../models/User.js';
-// Import will be handled dynamically to avoid circular dependency
-
-// Define types for TypeScript compatibility
-/**
- * @typedef {Object} JoinRoomData
- * @property {string} room - Room ID (booking_<bookingId> or admin_support_<chatId>)
- * @property {string} userId
- * @property {'customer' | 'garage' | 'mechanic' | 'admin'} senderRole
- * @property {string} [garageId] - Required for booking rooms
- */
-
-/**
- * @typedef {Object} SendMessageData
- * @property {string} room - Room ID
- * @property {Object} message
- * @property {string} message.senderId
- * @property {string} message.senderName
- * @property {'customer' | 'garage' | 'mechanic' | 'admin'} message.senderRole
- * @property {string} message.content
- * @property {string} message.timestamp
- */
 
 let io = null;
 
@@ -32,7 +11,6 @@ let io = null;
  * @returns {Server} Socket.IO instance
  */
 function initSocket(server) {
-  // Clear existing io instance to handle server restarts
   if (io) {
     io.close();
     io = null;
@@ -42,57 +20,84 @@ function initSocket(server) {
     cors: {
       origin: (origin, callback) => {
         const allowedOrigins = [
-          'http://localhost:5173',
-          'http://localhost:3000',
+          'http://localhost:5173', // Customer app
+          'http://localhost:5174', // Garage app
+          'http://localhost:5175', // Mechanic app
+          'http://localhost:5176', // Mechanic app
+          'http://localhost:3000', // Admin app
+          'http://localhost:3001', // Alternative admin port
           process.env.FRONTEND_URL,
         ].filter(Boolean);
 
+        console.log(`🔍 Socket.IO CORS check - Origin: ${origin}`);
         if (!origin || allowedOrigins.includes(origin)) {
+          console.log(`✅ Socket.IO CORS allowed for origin: ${origin}`);
           callback(null, true);
         } else {
+          console.log(`❌ Socket.IO CORS blocked origin: ${origin}`);
           callback(new Error('Not allowed by CORS'));
         }
       },
-      methods: ['GET', 'POST'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       credentials: true,
     },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000,
   });
 
   io.on('connection', (socket) => {
     console.log(`🔌 [${socket.id}] New client connected`);
 
-    socket.on('joinRoom', async ({ room, userId, senderRole, garageId }) => {
-      // Validate input
+    /**
+     * JOIN ROOM
+     * Accepts either { room } or { roomId } for backward compatibility
+     */
+    socket.on('joinRoom', async (data) => {
+      if (!data || typeof data !== 'object') {
+        console.error(`❌ [${socket.id}] Invalid joinRoom data: not an object`, data);
+        socket.emit('error', { message: 'Invalid joinRoom data', details: 'Data must be an object' });
+        return;
+      }
+
+      const roomId = data.roomId || data.room; // <-- normalize  // FIX
+      const { userId, senderRole, garageId } = data;
+
       const missingFields = [];
-      if (!room) missingFields.push('room');
-      if (!userId) missingFields.push('userId');
+      if (!roomId || typeof roomId !== 'string') missingFields.push('roomId'); // FIX
+      if (!userId || typeof userId !== 'string') missingFields.push('userId');
       if (!senderRole || !['customer', 'garage', 'mechanic', 'admin'].includes(senderRole)) missingFields.push('senderRole');
 
       if (missingFields.length > 0) {
-        console.error(`❌ [${socket.id}] Invalid joinRoom data: missing ${missingFields.join(', ')}`);
+        console.error(`❌ [${socket.id}] Invalid joinRoom: missing ${missingFields.join(', ')}`, { roomId, userId, senderRole, garageId });
         socket.emit('error', { message: 'Invalid joinRoom data', details: `Missing fields: ${missingFields.join(', ')}` });
         return;
       }
 
-      // Store user info in socket
+      // store on socket
       socket.userId = userId;
       socket.userRole = senderRole;
       socket.userName = socket.userName || 'Unknown User';
 
       try {
         let session;
-        
-        if (room.startsWith('booking_')) {
-          const bookingId = room.replace('booking_', '');
-          // Verify booking exists
+
+        if (roomId.startsWith('booking_')) {
+          const bookingId = roomId.replace('booking_', '');
           const booking = await Booking.findById(bookingId);
           if (!booking) {
             console.warn(`❌ [${socket.id}] No booking found for bookingId: ${bookingId}`);
             socket.emit('error', { message: 'Booking not found', details: `No booking for bookingId: ${bookingId}` });
             return;
           }
+          // Enforce access by booking status
+          const isAcceptedStatus = ['accepted', 'assigned', 'completed'].includes(booking.status);
+          if (!isAcceptedStatus && socket.userRole !== 'admin') {
+            socket.emit('error', { message: 'Booking chat available after acceptance', details: `Current status: ${booking.status}` });
+            return;
+          }
 
-          // Check if chat session exists, create if not
           session = await ChatSession.findOne({ bookingId });
           if (!session) {
             if (!garageId && senderRole !== 'customer') {
@@ -116,27 +121,63 @@ function initSocket(server) {
               }
             });
           }
-        } else if (room.startsWith('admin_support_')) {
-          const chatId = room.replace('admin_support_', '');
-          session = await ChatSession.findById(chatId);
-          if (!session) {
-            console.warn(`❌ [${socket.id}] No admin support chat found for chatId: ${chatId}`);
-            socket.emit('error', { message: 'Admin support chat not found', details: `No chat for chatId: ${chatId}` });
+
+          const hasAccess =
+            (senderRole === 'customer' && booking.customer.toString() === userId) ||
+            (senderRole === 'garage' && booking.garage && booking.garage.toString() === garageId) ||
+            (senderRole === 'mechanic' && booking.mechanic && booking.mechanic.toString() === userId) ||
+            (senderRole === 'admin');
+
+          if (!hasAccess) {
+            console.error(`❌ [${socket.id}] Access denied to booking ${bookingId}`);
+            socket.emit('error', { message: 'Access denied to this booking chat' });
             return;
           }
+        } else if (roomId.startsWith('support_')) {
+          // New support room tied to a bookingId for customer<->admin pre-acceptance chat
+          const bookingId = roomId.replace('support_', '');
+          const booking = await Booking.findById(bookingId);
+          if (!booking) {
+            socket.emit('error', { message: 'Booking not found' });
+            return;
+          }
+          // Only allow when not yet accepted/assigned/completed
+          const isAcceptedStatus = ['accepted', 'assigned', 'completed'].includes(booking.status);
+          if (isAcceptedStatus) {
+            socket.emit('error', { message: 'Support chat closed after acceptance' });
+            return;
+          }
+          // Only customer or admin can enter support room
+          if (!(senderRole === 'customer' || senderRole === 'admin')) {
+            socket.emit('error', { message: 'Only customer and admin can join support chat' });
+            return;
+          }
+          // Find or create support session marked isAdminChat with bookingId
+          session = await ChatSession.findOne({ bookingId, isAdminChat: true });
+          if (!session) {
+            session = await ChatSession.create({
+              bookingId,
+              isAdminChat: true,
+              title: `Support for booking #${booking._id.toString().slice(-6)}`,
+              participants: {
+                customerId: booking.customer
+              },
+              messages: [],
+              permissions: { canSendMessage: true, canSendFiles: true, canSendLocation: false }
+            });
+          }
         } else {
-          console.error(`❌ [${socket.id}] Invalid room format: ${room}`);
-          socket.emit('error', { message: 'Invalid room format', details: `Room must start with 'booking_' or 'admin_support_'` });
+          console.error(`❌ [${socket.id}] Invalid room format: ${roomId}`);
+          socket.emit('error', { message: 'Invalid room format', details: `Room must start with 'booking_' or 'support_'` });
           return;
         }
 
-        // Join the room
-        socket.join(room);
-        socket.roomId = room;
-        
-        console.log(`✅ [${socket.id}] User ${userId} (${senderRole}) joined room: ${room}`);
+        socket.join(roomId);
+        socket.roomId = roomId;
 
-        // Get user name for notifications
+        console.log(`✅ [${socket.id}] User ${userId} (${senderRole}) joined room: ${roomId}`);
+
+        // Fetch user name
         let userName = 'Unknown User';
         try {
           const user = await User.findById(userId);
@@ -148,9 +189,8 @@ function initSocket(server) {
           console.warn('Could not fetch user name:', error);
         }
 
-        // Emit system message for user joining
+        // System message: user joined (let Mongoose assign _id)
         const systemMessage = {
-          _id: Date.now().toString(),
           senderId: 'system',
           senderName: 'System',
           senderRole: 'system',
@@ -160,24 +200,21 @@ function initSocket(server) {
           readBy: []
         };
 
-        // Add system message to chat session
         session.messages.push(systemMessage);
         session.lastActivity = new Date();
         await session.save();
 
-        // Emit system message to all users in the room
-        io.to(room).emit('receiveMessage', systemMessage);
+        // Emit to room with flat message + roomId
+        io.to(roomId).emit('receiveMessage', { ...systemMessage, roomId }); // FIX
 
-        // Notify other users about user joining
-        socket.to(room).emit('userJoined', {
+        socket.to(roomId).emit('userJoined', {
           userId,
           userRole: senderRole,
           userName
         });
 
-        // Send chat session info
         socket.emit('chatSessionInfo', {
-          roomId: room,
+          roomId,
           sessionId: session._id,
           isAdminChat: session.isAdminChat,
           supportStatus: session.supportStatus,
@@ -191,92 +228,136 @@ function initSocket(server) {
       }
     });
 
+    /**
+     * SEND MESSAGE
+     * Accepts either { room, sender } or { roomId, senderId } for compatibility
+     */
     socket.on('sendMessage', async (messageData) => {
       try {
-        const { room, content, sender, senderRole, timestamp, bookingId } = messageData;
-        
-        if (!room || !content || !sender || !senderRole) {
+        const roomId = messageData.roomId || messageData.room; // FIX
+        const senderId = messageData.senderId || messageData.sender; // FIX
+        const { content, senderRole, timestamp } = messageData;
+
+        if (!roomId || !content || !senderId || !senderRole) {
           socket.emit('error', { message: 'Missing required message data' });
           return;
         }
 
-        if (!socket.roomId || socket.roomId !== room) {
+        if (!socket.roomId || socket.roomId !== roomId) {
           socket.emit('error', { message: 'You are not in this room' });
           return;
         }
 
-        // Find or create chat session
-        let session;
-        
-        if (room.startsWith('booking_')) {
-          const bookingIdFromRoom = room.replace('booking_', '');
-          session = await ChatSession.findOne({ bookingId: bookingIdFromRoom });
-        } else if (room.startsWith('admin_support_')) {
-          const chatId = room.replace('admin_support_', '');
-          session = await ChatSession.findById(chatId);
+        if (senderId !== socket.userId) {
+          socket.emit('error', { message: 'Sender ID mismatch' });
+          return;
         }
 
+        // locate session
+        let session;
+        if (roomId.startsWith('booking_')) {
+          const bookingIdFromRoom = roomId.replace('booking_', '');
+          // Re-check booking status for sending guard
+          const booking = await Booking.findById(bookingIdFromRoom);
+          if (!booking) {
+            socket.emit('error', { message: 'Booking not found' });
+            return;
+          }
+          const isAcceptedStatus = ['accepted', 'assigned', 'completed'].includes(booking.status);
+          if (!isAcceptedStatus && socket.userRole !== 'admin') {
+            socket.emit('error', { message: 'Booking chat available after acceptance' });
+            return;
+          }
+          session = await ChatSession.findOne({ bookingId: bookingIdFromRoom });
+        } else if (roomId.startsWith('support_')) {
+          const bookingId = roomId.replace('support_', '');
+          const booking = await Booking.findById(bookingId);
+          if (!booking) {
+            socket.emit('error', { message: 'Booking not found' });
+            return;
+          }
+          const isAcceptedStatus = ['accepted', 'assigned', 'completed'].includes(booking.status);
+          if (isAcceptedStatus) {
+            socket.emit('error', { message: 'Support chat closed after acceptance' });
+            return;
+          }
+          // Only customer/admin can send here
+          if (!(socket.userRole === 'customer' || socket.userRole === 'admin')) {
+            socket.emit('error', { message: 'Only customer and admin can send in support chat' });
+            return;
+          }
+          session = await ChatSession.findOne({ bookingId, isAdminChat: true });
+        }
         if (!session) {
           socket.emit('error', { message: 'Chat session not found' });
           return;
         }
 
-        // Get sender name
+        // sender name
         let senderName = 'Unknown User';
         try {
-          const user = await User.findById(sender);
-          if (user) {
-            senderName = user.name;
-          }
-        } catch (error) {
-          console.error('Error fetching user:', error);
+          const user = await User.findById(senderId);
+          if (user) senderName = user.name;
+        } catch (e) {
+          console.error('Error fetching user:', e);
         }
 
-        // Create message
+        // Message (let Mongoose assign _id)
         const message = {
-          _id: Date.now().toString(),
-          senderId: sender,
-          senderRole: senderRole,
+          senderId,
+          senderRole,
           senderName,
           content,
           messageType: 'text',
-          timestamp: new Date(timestamp),
-          readBy: [{ userId: sender, readAt: new Date() }],
+          timestamp: new Date(timestamp || Date.now()),
+          readBy: [{ userId: senderId, readAt: new Date() }],
           isSystemMessage: false
         };
 
-        // Save message to session
         session.messages.push(message);
         session.lastActivity = new Date();
         await session.save();
 
-        // Emit message to all users in the room
-        io.to(room).emit('newMessage', message);
+        // Emit ONLY receiveMessage with flat payload + roomId
+        io.to(roomId).emit('receiveMessage', { ...message, roomId }); // FIX (removed newMessage)
 
-        // Update typing status
-        socket.to(room).emit('stopTyping', { 
-          userId: sender, 
-          room 
+        // Typing stopped (emit standardized event)
+        socket.to(roomId).emit('userStoppedTyping', { // FIX
+          userId: senderId,
+          userRole: senderRole,
+          userName: senderName,
+          roomId
         });
 
-        console.log(`💬 [${socket.id}] Message sent in room ${room} by ${senderRole} ${sender}`);
+        console.log(`💬 [${socket.id}] Message sent in room ${roomId} by ${senderRole} ${senderId}`);
 
-        // Send notification to other participants
-        const otherParticipants = session.participants ? 
-          Object.values(session.participants).filter(p => p && p.toString() !== sender) : [];
-        
+        // Notifications to other participants
+        const otherParticipants = [];
+        if (session.participants) {
+          if (session.participants.customerId && session.participants.customerId.toString() !== senderId) {
+            otherParticipants.push(session.participants.customerId.toString());
+          }
+          if (session.participants.garageId && session.participants.garageId.toString() !== senderId) {
+            otherParticipants.push(session.participants.garageId.toString());
+          }
+          if (session.participants.mechanicId && session.participants.mechanicId.toString() !== senderId) {
+            otherParticipants.push(session.participants.mechanicId.toString());
+          }
+          if (session.participants.adminId && session.participants.adminId.toString() !== senderId) {
+            otherParticipants.push(session.participants.adminId.toString());
+          }
+        }
+
         for (const participantId of otherParticipants) {
-          if (participantId && participantId.toString() !== sender) {
-            try {
-              io.to(participantId.toString()).emit('notification', {
-                type: 'chat:new_message',
-                message: `New message in ${room.startsWith('booking_') ? 'booking chat' : 'support chat'}`,
-                payload: { room, messageId: message._id },
-                timestamp: new Date()
-              });
-            } catch (error) {
-              console.error(`Error sending notification to ${participantId}:`, error);
-            }
+          try {
+            io.to(participantId.toString()).emit('notification', {
+              type: 'chat:new_message',
+              message: `New message in ${roomId.startsWith('booking_') ? 'booking chat' : 'support chat'}`,
+              payload: { roomId, messageId: message._id },
+              timestamp: new Date()
+            });
+          } catch (error) {
+            console.error(`Error sending notification to ${participantId}:`, error);
           }
         }
 
@@ -286,32 +367,44 @@ function initSocket(server) {
       }
     });
 
-    socket.on('typing', ({ room, userId }) => {
-      try {
-        if (!room || !userId) {
-          return;
-        }
+    /**
+     * TYPING INDICATORS
+     * Standard events: userTyping / userStoppedTyping
+     * Also accept legacy typing/stopTyping and map to new ones
+     */
+    const handleTyping = ({ roomId, room, userId, userRole, userName }) => {
+      const rId = roomId || room;
+      if (!rId || !userId) return;
+      socket.to(rId).emit('userTyping', { // FIX (standardized)
+        roomId: rId,
+        userId,
+        userRole: userRole || socket.userRole || 'user',
+        userName: userName || socket.userName || 'User'
+      });
+    };
 
-        // Emit typing indicator to other users in the room
-        socket.to(room).emit('typing', { userId, room });
-      } catch (error) {
-        console.error(`❌ [${socket.id}] Error handling typing:`, error);
-      }
-    });
+    const handleStopTyping = ({ roomId, room, userId, userRole, userName }) => {
+      const rId = roomId || room;
+      if (!rId || !userId) return;
+      socket.to(rId).emit('userStoppedTyping', { // FIX (standardized)
+        roomId: rId,
+        userId,
+        userRole: userRole || socket.userRole || 'user',
+        userName: userName || socket.userName || 'User'
+      });
+    };
 
-    socket.on('stopTyping', ({ room, userId }) => {
-      try {
-        if (!room || !userId) {
-          return;
-        }
+    // New event names
+    socket.on('userTyping', handleTyping);           // FIX
+    socket.on('userStoppedTyping', handleStopTyping); // FIX
 
-        // Emit stop typing indicator to other users in the room
-        socket.to(room).emit('stopTyping', { userId, room });
-      } catch (error) {
-        console.error(`❌ [${socket.id}] Error handling stop typing:`, error);
-      }
-    });
+    // Backward compatibility with legacy names
+    socket.on('typing', handleTyping);       // legacy → mapped to userTyping
+    socket.on('stopTyping', handleStopTyping); // legacy → mapped to userStoppedTyping
 
+    /**
+     * READ RECEIPTS
+     */
     socket.on('markAsRead', async ({ roomId, messageIds }) => {
       try {
         if (!roomId || !messageIds || !Array.isArray(messageIds)) {
@@ -320,7 +413,6 @@ function initSocket(server) {
         }
 
         let session;
-        
         if (roomId.startsWith('booking_')) {
           const bookingId = roomId.replace('booking_', '');
           session = await ChatSession.findOne({ bookingId });
@@ -334,7 +426,6 @@ function initSocket(server) {
           return;
         }
 
-        // Mark messages as read
         for (const messageId of messageIds) {
           const message = session.messages.id(messageId);
           if (message && !message.readBy.some(read => read.userId.toString() === socket.userId)) {
@@ -347,7 +438,6 @@ function initSocket(server) {
 
         await session.save();
 
-        // Emit read receipt
         socket.to(roomId).emit('messagesRead', {
           userId: socket.userId,
           userRole: socket.userRole,
@@ -361,6 +451,9 @@ function initSocket(server) {
       }
     });
 
+    /**
+     * LEAVE ROOM
+     */
     socket.on('leaveRoom', async ({ roomId }) => {
       try {
         if (!roomId || socket.roomId !== roomId) {
@@ -368,9 +461,8 @@ function initSocket(server) {
           return;
         }
 
-        // Emit system message for user leaving
+        // System message: user left (let Mongoose assign _id)
         const systemMessage = {
-          _id: Date.now().toString(),
           senderId: 'system',
           senderName: 'System',
           senderRole: 'system',
@@ -380,7 +472,6 @@ function initSocket(server) {
           readBy: []
         };
 
-        // Add system message to chat session
         let session;
         if (roomId.startsWith('booking_')) {
           const bookingId = roomId.replace('booking_', '');
@@ -396,20 +487,17 @@ function initSocket(server) {
           await session.save();
         }
 
-        // Emit system message to other users
-        socket.to(roomId).emit('receiveMessage', systemMessage);
+        socket.to(roomId).emit('receiveMessage', { ...systemMessage, roomId }); // FIX
 
-        // Notify other users about user leaving
         socket.to(roomId).emit('userLeft', {
           userId: socket.userId,
           userRole: socket.userRole,
           userName: socket.userName || 'Unknown User'
         });
 
-        // Leave the room
         socket.leave(roomId);
         socket.roomId = null;
-        
+
         console.log(`👋 [${socket.id}] User ${socket.userId} left room: ${roomId}`);
 
       } catch (error) {
@@ -418,30 +506,28 @@ function initSocket(server) {
       }
     });
 
-    // Handle real-time location updates
+    /**
+     * LOCATION STREAMS (unchanged)
+     */
     socket.on('locationUpdate', async ({ bookingId, location }) => {
       try {
-        // Emit location update to all users in the booking room
         io.to(`location_${bookingId}`).emit('locationUpdated', {
           bookingId,
           location,
           timestamp: new Date()
         });
-        
         console.log(`📍 Location update for booking ${bookingId} from ${location.userRole} ${location.userId}`);
       } catch (error) {
         console.error('Error handling location update:', error);
       }
     });
 
-    // Handle joining location tracking room
     socket.on('joinLocationRoom', (bookingId) => {
       if (!bookingId) return;
       socket.join(`location_${bookingId}`);
       console.log(`📍 Socket ${socket.id} joined location room: location_${bookingId}`);
     });
 
-    // Handle leaving location tracking room
     socket.on('leaveLocationRoom', (bookingId) => {
       if (!bookingId) return;
       socket.leave(`location_${bookingId}`);
@@ -450,8 +536,6 @@ function initSocket(server) {
 
     socket.on('disconnect', () => {
       console.log(`🔌 [${socket.id}] Client disconnected`);
-      
-      // Clean up if user was in a room
       if (socket.roomId) {
         socket.to(socket.roomId).emit('userDisconnected', {
           userId: socket.userId,

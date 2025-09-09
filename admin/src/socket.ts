@@ -5,7 +5,13 @@ import { useEffect, useState } from 'react';
 
 const socket: Socket = io('http://localhost:5000', {
   withCredentials: true,
-  transports: ['websocket'],
+  transports: ['websocket', 'polling'],
+  timeout: 20000,
+  forceNew: true,
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: 5,
+  maxReconnectionAttempts: 5,
 });
 
 socket.on('connect', () => {

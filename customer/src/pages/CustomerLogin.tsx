@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, User, Phone, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import ThemeToggle from '../ThemeToggle';
+// import ThemeToggle from '../ThemeToggle';
 import { toast } from 'react-hot-toast';
 
 const CustomerLogin: React.FC = () => {
@@ -59,7 +59,7 @@ const CustomerLogin: React.FC = () => {
       </div>
 
       <div className="absolute top-4 right-4">
-        <ThemeToggle />
+        {/* <ThemeToggle /> */}
       </div>
 
       <motion.div
@@ -146,15 +146,7 @@ const CustomerLogin: React.FC = () => {
           </p>
         </div>
 
-        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
-          <p className="text-center text-gray-500 dark:text-gray-400 text-sm">
-            Different role?
-          </p>
-          <div className="flex justify-center space-x-4 mt-2">
-            <Link to="/login/garage" className="text-green-600 hover:text-green-700 text-sm">Garage Owner</Link>
-            <Link to="/login/mechanic" className="text-green-600 hover:text-green-700 text-sm">Mechanic</Link>
-          </div>
-        </div>
+       
       </motion.div>
     </div>
   );
