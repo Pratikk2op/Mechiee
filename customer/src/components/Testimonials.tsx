@@ -1,18 +1,9 @@
-import React from "react";
+
 import "./Testimonials.css"
 import { 
-  Wrench, 
-  MapPin, 
-  Clock, 
-  CreditCard, 
+
   Star, 
-  Smartphone,
-  Shield,
-  Zap,
-  CheckCircle,
-  ArrowRight,
-  Calendar,
-  MessageCircle
+
 } from 'lucide-react';
 
 const testimonials = [

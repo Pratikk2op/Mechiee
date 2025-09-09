@@ -35,6 +35,9 @@ const GarageRegistrationForm = () => {
     cancelledCheque: '',
   });
 
+  // Define a type for formData that includes an index signature
+  type FormData = typeof formData;
+
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -95,7 +98,7 @@ const GarageRegistrationForm = () => {
   const validateStep = (): boolean => {
     const newErrors: { [key: string]: string } = {};
     requiredFields[step]?.forEach(field => {
-      if (!formData[field]) newErrors[field] = 'This field is required';
+      if (!(formData as any)[field]) newErrors[field] = 'This field is required';
     });
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -116,7 +119,7 @@ const GarageRegistrationForm = () => {
         type={type}
         name={name}
         placeholder={placeholder || label}
-        value={formData[name] as string}
+        value={formData[name as keyof FormData]}
         onChange={handleChange}
         className={`w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-800 dark:text-white ${errors[name] ? 'border-red-500' : 'border-gray-300'}`}
       />
@@ -131,7 +134,7 @@ const GarageRegistrationForm = () => {
       </label>
       <select
         name={name}
-        value={formData[name] as string}
+        value={formData[name as keyof FormData]}
         onChange={handleChange}
         className={`w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-800 dark:text-white ${errors[name] ? 'border-red-500' : 'border-gray-300'}`}
       >
@@ -187,7 +190,7 @@ const GarageRegistrationForm = () => {
                 </label>
                 <input type="file" name={name} onChange={handleFileChange}
                   className="w-full p-2 border rounded dark:bg-gray-800 dark:text-white" />
-                {formData[name] && <p className="text-green-600 text-sm mt-1">Uploaded ✅</p>}
+                {formData[name as keyof FormData] && <p className="text-green-600 text-sm mt-1">Uploaded ✅</p>}
               </div>
             ))}
           </div>

@@ -1,18 +1,14 @@
-import React from 'react'
+
 import {motion} from "framer-motion"
 import { 
-  Wrench, 
+
   MapPin, 
   Clock, 
   CreditCard, 
   Star, 
   Smartphone,
   Shield,
-  Zap,
-  CheckCircle,
-  ArrowRight,
-  Calendar,
-  MessageCircle
+
 } from 'lucide-react';
 const USP = () => {
    const benefits = [

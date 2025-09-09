@@ -10,17 +10,13 @@ import Footer from "../components/Footer"
 import { useAuth } from '../context/AuthContext';
 import { 
   Wrench, 
-  MapPin, 
-  Clock, 
-  CreditCard, 
-  Star, 
-  Smartphone,
+  
   Store,
   Zap,
   CheckCircle,
   ArrowRight,
   Calendar,
-  MessageCircle
+
 } from 'lucide-react';
 import HowItWorks from "../components/HowItWorks";
  // Adjust the import path as necessary

@@ -7,7 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import { useAuth } from './../contexts/AuthContext';
 import { trackingAPI } from './../services/api';
 import socket from './../socket';
-import { Navigation, MapPin, User, Car, Clock, Phone, ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
+import { Navigation, MapPin, ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Fix for default markers in Leaflet
@@ -106,7 +106,7 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
   const [estimatedArrival, setEstimatedArrival] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const locationIntervalRef = useRef<NodeJS.Timeout>();
+  const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const getCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, User, Phone, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-// import ThemeToggle from '../ThemeToggle';
+
 import { toast } from 'react-hot-toast';
 
 const CustomerLogin: React.FC = () => {

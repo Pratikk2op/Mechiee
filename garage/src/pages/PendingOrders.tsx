@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, XCircle, Clock, MapPin, Phone, User, Bike, Calendar, MessageCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, MapPin, Phone, User, Bike, Calendar} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBooking } from '../contexts/BookingContext';
 import toast from 'react-hot-toast';
@@ -14,6 +14,7 @@ interface PendingBooking {
     name: string;
     phone: string;
   };
+  mobile?: string;
   serviceType: string;
   brand: string;
   model: string;
@@ -41,8 +42,8 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
   const { mechanicList, reloadData } = useBooking();
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [selectedMechanicId, setSelectedMechanicId] = useState<string>('');
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
 
@@ -50,7 +51,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
   const fetchPendingBookings = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:5000/api/bookings/pending', {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/pending`, {
         withCredentials: true
       });
       setPendingBookings(response.data);
@@ -72,7 +73,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
   useEffect(() => {
     if (user?.role !== 'garage') return;
 
-    const socket = io('http://localhost:5000', {
+    const socket = io(import.meta.env.VITE_API_URL, {
       withCredentials: true
     });
 
@@ -104,7 +105,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
     }
 
     try {
-      await axios.post('http://localhost:5000/api/bookings/accept', {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/bookings/accept`, {
         bookingId,
         mechanicId: selectedMechanicId
       }, {
@@ -126,7 +127,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
   // Handle reject booking
   const handleRejectBooking = async (bookingId: string) => {
     try {
-      await axios.post('http://localhost:5000/api/bookings/reject', {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/bookings/reject`, {
         bookingId,
         reason: rejectReason || 'No reason provided'
       }, {
@@ -153,13 +154,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
     });
   };
 
-  // Format time
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+
 
   if (loading) {
     return (
@@ -242,7 +237,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
                       </p>
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Phone className="w-4 h-4" />
-                        <span>{booking.mobile || 'N/A'}</span>
+                        <span>{booking?.mobile || 'N/A'}</span>
                       </div>
                     </div>
                   </div>

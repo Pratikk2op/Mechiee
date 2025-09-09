@@ -13,7 +13,7 @@ import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
 // Base URI for API and Socket
-const BASE_URI = 'http://localhost:5000';
+const BASE_URI = import.meta.env.VITE_API_URL;
 
 // Types (adjust as necessary)
 interface Booking {
@@ -59,6 +59,7 @@ interface BookingContextType {
   joinBookingRoom: (bookingId: string) => void;
   leaveBookingRoom: (bookingId: string) => void;
   socket: Socket | null;
+  garageId: string | null;
 }
 
 const BookingContext = createContext<BookingContextType>(
@@ -422,7 +423,7 @@ useEffect(() => {
     // Chat messages received
     newSocket.on(
       'receiveMessage',
-      ({ roomId, senderId, message, timestamp }) => {
+      ({ roomId, senderId, message}) => {
         console.log(`Chat message on room ${roomId} from ${senderId}: ${message}`);
         // Update chat state/UI here if needed
       }

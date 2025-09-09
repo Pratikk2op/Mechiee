@@ -1,6 +1,6 @@
-import type{ User, Booking, ChatSession, DashboardStats, RegisterFormData, BookingFormData, ApiResponse } from '../types';
+import type{ User, Booking,  DashboardStats, RegisterFormData, BookingFormData, ApiResponse } from '../types';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api`;
 
 class ApiService {
   private getHeaders() {

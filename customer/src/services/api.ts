@@ -1,6 +1,6 @@
-import type{ User, Booking, ChatSession, DashboardStats, RegisterFormData, BookingFormData, ApiResponse } from '../types';
+import type{ User, Booking,  DashboardStats, RegisterFormData, BookingFormData, ApiResponse } from '../types';
 
-const API_BASE_URL = 'https://backend-3lsi.onrender.com/api';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api`;
 
 class ApiService {
   private getHeaders() {

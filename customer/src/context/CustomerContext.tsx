@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const BASE_URI = 'https://backend-3lsi.onrender.com';
+const BASE_URI = import.meta.env.VITE_API_URL;
 
 interface Customer {
   _id: string;

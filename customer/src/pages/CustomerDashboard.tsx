@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { User, LogOut, Home, SendHorizonal, Bell, MessageSquare, MapPin ,Calculator,Wrench} from 'lucide-react';
+import React, { useState, useEffect} from 'react';
+import { User, LogOut, Home, MapPin ,Calculator,Wrench} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { notificationSound } from '../util/notificationSound';
@@ -11,7 +11,7 @@ import LocationSelector from '../ServiceBooking/SelectLocation';
 import RealTimeTracker from '../tracking/RealTimeTracker';
 import LiveTrackingMap from '../tracking/LiveTrackingMap';
 
-const BASE_URI = 'http://localhost:5000';
+const BASE_URI = import.meta.env.VITE_API_URL;
 interface ServiceHistory {
   _id: string;
   date: string | null;
@@ -83,8 +83,8 @@ const CustomerDashboard: React.FC = () => {
   const [showLocationSelector, setShowLocationSelector] = useState(false);
   const [notifications, setNotifications] = useState<{ id: string; type: string; message: string; timestamp: Date; payload?: any; read: boolean }[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMinimized, setChatMinimized] = useState(false);
+  
+
   const [trackingOpen, setTrackingOpen] = useState(false);
   const [trackingCollapsed, setTrackingCollapsed] = useState(false);
   const [selectedBookingForTracking, setSelectedBookingForTracking] = useState<string | null>(null);
@@ -136,7 +136,7 @@ const CustomerDashboard: React.FC = () => {
   useEffect(() => {
     const loadNotifications = async () => {
       try {
-        const response = await fetch('https://backend-3lsi.onrender.com/api/notifications', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notifications`, {
           credentials: 'include'
         });
         if (response.ok) {

@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Socket } from 'socket.io-client';
 import { motion } from 'framer-motion';
-import { Building, Calendar, Users, DollarSign, LogOut, MessageCircle, User, Bell, Clock, Receipt, MapPin } from 'lucide-react';
+import { Building, Calendar, Users, DollarSign, LogOut, User, Bell, Clock, Receipt, MapPin } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBooking } from '../contexts/BookingContext';
 import { notificationSound } from '../util/notificationSound';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import  L from 'leaflet';
+import  type { IconOptions } from 'leaflet';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-// Chat removed per requirement
+import { Socket } from 'socket.io-client';
 import RealTimeTracker from '../tracking/RealTimeTracker';
 import LiveTrackingMap from '../tracking/LiveTrackingMap';
 import BillingComponent from './BillingComponent';
@@ -18,7 +18,7 @@ import ThemeToggle from '../ThemeToggle';
 import PendingOrders from './PendingOrders';
 import appSocket from '../socket';
 
-// Define interfaces (aligned with BookingContext and backend)
+// Define interfaces
 interface Customer {
   _id: string;
   name: string;
@@ -33,12 +33,12 @@ interface Service {
 
 interface Booking {
   _id: string;
-  customerId: Customer; // Dashboard-specific
-  customer: string; // Backend ID reference
-  customerName: string; // From newBookingRequest
-  serviceId: Service; // Dashboard-specific
-  serviceType: string; // From newBookingRequest
-  status: 'pending' | 'accepted' | 'completed' | 'cancelled';
+  customerId?: Customer;
+  customer: string;
+  customerName: string;
+  serviceId?: Service;
+  serviceType: string;
+  status: 'pending' | 'accepted' | 'completed' | 'cancelled' | 'confirmed' | 'in-progress' | 'on-way' | 'arrived' | 'working';
   scheduledDate: string;
   scheduledTime: string;
   totalAmount?: number;
@@ -67,7 +67,7 @@ interface Mechanic {
   _id: string;
   name: string;
   email: string;
-  userId: UserId;
+  userId?: UserId;
   location: Location;
   phone: string;
   skills?: string[];
@@ -75,7 +75,55 @@ interface Mechanic {
   lng?: number;
 }
 
-// User type is imported from AuthContext
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  logout: () => void;
+  updateProfile: (data: { name: string; email: string; phone: string }) => Promise<void>;
+}
+
+interface BookingContextType {
+  bookingList: Booking[];
+  mechanicList: Mechanic[];
+  acceptBooking?: (bookingId: string, mechanicId: string) => Promise<void>;
+  deleteMechanic?: (mechanicId: string) => Promise<void>;
+  pendingBooking?: Booking[];
+  reloadData?: () => void;
+  garageId?: string;
+}
+
+interface Notification {
+  _id: string;
+  type: string;
+  message: string;
+  timestamp: string | Date;
+  payload?: any;
+  read: boolean;
+}
+
+interface NotificationResponse {
+  _id: string;
+  type: string;
+  message: string;
+  timestamp: string;
+  payload?: any;
+  read: boolean;
+  createdAt?: string;
+}
+
+// Component prop interfaces
+
+
+
+
+
 
 // Leaflet marker icon configuration
 const markerIcon = new L.Icon({
@@ -85,26 +133,24 @@ const markerIcon = new L.Icon({
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
-});
+} as IconOptions);
 
 const GarageDashboard: React.FC = () => {
-  const { user, logout, updateProfile } = useAuth();
-  const { bookingList, mechanicList, acceptBooking, deleteMechanic, pendingBooking, reloadData, garageId } = useBooking();
+  const authContext = useAuth() as AuthContextType | undefined;
+  const bookingContext = useBooking() as unknown as BookingContextType | undefined;
+  const { user, logout, updateProfile } = authContext || {};
+  const { bookingList = [], mechanicList = [], acceptBooking, deleteMechanic, pendingBooking = [], reloadData, garageId } = bookingContext || { bookingList: [], mechanicList: [], acceptBooking: undefined, deleteMechanic: undefined, pendingBooking: [], reloadData: undefined, garageId: '' as string };
   const [activeTab, setActiveTab] = useState<string>('pending-orders');
   const [loading, setLoading] = useState<boolean>(true);
   const [expandedMechanicId, setExpandedMechanicId] = useState<string | null>(null);
   const [showMapId, setShowMapId] = useState<string | null>(null);
-  // Use the shared appSocket instance; avoid shadowing by not redefining 'socket' state
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-  const [profileForm, setProfileForm] = useState<{ name: string; email: string,phone:string }>({ name: '', email: '' ,phone:''});
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMinimized, setChatMinimized] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [notifications, setNotifications] = useState<{ id: string; type: string; message: string; timestamp: Date; payload?: any; read: boolean }[]>([]);
+  const [profileForm, setProfileForm] = useState<{ name: string; email: string; phone: string }>({ name: '', email: '', phone: '' });
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [billingOpen, setBillingOpen] = useState(false);
   const [trackingOpen, setTrackingOpen] = useState(false);
   const [trackingCollapsed, setTrackingCollapsed] = useState(false);
+  const navigate = useNavigate();
 
   // Close notifications when clicking outside
   useEffect(() => {
@@ -121,99 +167,99 @@ const GarageDashboard: React.FC = () => {
     };
   }, [showNotifications]);
 
-  const navigate = useNavigate();
-
   // Initialize profile form with user data
   useEffect(() => {
     if (user) {
       setProfileForm({
         name: user.name || '',
         email: user.email || '',
+        phone: user.phone || '',
       });
     }
   }, [user]);
 
   // Initialize Socket.IO and register garage
   useEffect(() => {
-    if (user?._id && user?.role === 'garage') {
-      const handleConnect = () => {
-        console.log('Garage socket connected');
-        appSocket.emit('register', { userId: user._id, role: 'garage' });
-      };
+    if (!user || !authContext || user.role !== 'garage') return;
 
-      const handleConnectError = (err: Error) => {
-        console.error('Socket connection error:', err);
-        toast.error('Failed to connect to server', {
-          position: 'top-right',
-          duration: 5000,
-        });
-      };
+    const socket: Socket = appSocket;
 
-      const handleNewBooking = (data: Booking) => {
-        toast.success(`📥 New booking from ${data.customerName}!`, {
-          position: 'top-right',
-          duration: 5000,
-        });
-        notifySystem('New Booking', `Booking from ${data.customerName} received.`);
-        // Force refresh of pending bookings
-        reloadData();
-      };
+    const handleConnect = () => {
+      console.log('Garage socket connected');
+      socket.emit('register', { userId: user._id, role: 'garage' });
+    };
 
-      const handleBookingStored = (data: { bookingId: string; booking: Booking; message: string }) => {
-        toast.success(data.message, {
-          position: 'top-right',
-          duration: 5000,
-        });
-        notifySystem('Booking Stored', data.message);
-        reloadData();
-      };
+    const handleConnectError = (err: Error) => {
+      console.error('Socket connection error:', err);
+      toast.error('Failed to connect to server', {
+        position: 'top-right',
+        duration: 5000,
+      });
+    };
 
-      const handleBookingClosed = (data: { bookingId: string; acceptingGarageId: string; message: string }) => {
-        toast.success(data.message, {
-          position: 'top-right',
-          duration: 5000,
-        });
-        notifySystem('Booking Closed', data.message);
-        reloadData();
-      };
+    const handleNewBooking = (data: Booking) => {
+      toast.success(`📥 New booking from ${data.customerName}!`, {
+        position: 'top-right',
+        duration: 5000,
+      });
+      notifySystem('New Booking', `Booking from ${data.customerName} received.`);
+      reloadData?.();
+    };
 
-      const handleNotification = (data: { type: string; message: string; payload?: any; timestamp: Date }) => {
-        setNotifications(prev => [
-          {
-            id: `${data.type}-${Date.now()}`,
-            type: data.type,
-            message: data.message,
-            timestamp: new Date(data.timestamp),
-            payload: data.payload,
-            read: false
-          },
-          ...prev
-        ]);
+    const handleBookingStored = (data: { bookingId: string; booking: Booking; message: string }) => {
+      toast.success(data.message, {
+        position: 'top-right',
+        duration: 5000,
+      });
+      notifySystem('Booking Stored', data.message);
+      reloadData?.();
+    };
 
-        if (data.type.startsWith('booking:')) {
-          toast.success(data.message, { position: 'top-right', duration: 3000 });
-          notificationSound.play();
-        }
-      };
+    const handleBookingClosed = (data: { bookingId: string; acceptingGarageId: string; message: string }) => {
+      toast.success(data.message, {
+        position: 'top-right',
+        duration: 5000,
+      });
+      notifySystem('Booking Closed', data.message);
+      reloadData?.();
+    };
 
-      appSocket.on('connect', handleConnect);
-      appSocket.on('connect_error', handleConnectError);
-      appSocket.on('newBookingRequest', handleNewBooking);
-      appSocket.on('booking:stored', handleBookingStored);
-      appSocket.on('booking:closed', handleBookingClosed);
-      appSocket.on('notification', handleNotification);
+    const handleNotification = (data: { type: string; message: string; payload?: any; timestamp: Date }) => {
+      setNotifications(prev => [
+        {
+          _id: `${data.type}-${Date.now()}`,
+          type: data.type,
+          message: data.message,
+          timestamp: new Date(data.timestamp),
+          payload: data.payload,
+          read: false,
+        },
+        ...prev,
+      ]);
 
-      return () => {
-        appSocket.off('connect', handleConnect);
-        appSocket.off('connect_error', handleConnectError);
-        appSocket.off('newBookingRequest', handleNewBooking);
-        appSocket.off('booking:stored', handleBookingStored);
-        appSocket.off('booking:closed', handleBookingClosed);
-        appSocket.off('notification', handleNotification);
-      };
-    }
+      if (data.type.startsWith('booking:')) {
+        toast.success(data.message, { position: 'top-right', duration: 3000 });
+        (notificationSound as unknown as HTMLAudioElement).play();
+      }
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('newBookingRequest', handleNewBooking);
+    socket.on('booking:stored', handleBookingStored);
+    socket.on('booking:closed', handleBookingClosed);
+    socket.on('notification', handleNotification);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('newBookingRequest', handleNewBooking);
+      socket.off('booking:stored', handleBookingStored);
+      socket.off('booking:closed', handleBookingClosed);
+      socket.off('notification', handleNotification);
+    };
   }, [user, reloadData]);
- 
+
   // Browser notification function
   const notifySystem = (title: string, body: string) => {
     if (Notification.permission === 'granted') {
@@ -242,23 +288,25 @@ const GarageDashboard: React.FC = () => {
 
   // Load stored notifications
   useEffect(() => {
+    if (!user) return;
+
     const loadNotifications = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/notifications', {
-          credentials: 'include'
+          credentials: 'include',
         });
         if (response.ok) {
-          const storedNotifications = await response.json();
+          const storedNotifications: NotificationResponse[] = await response.json();
           setNotifications(prev => [
-            ...storedNotifications.map((n: any) => ({
-              id: n._id,
+            ...storedNotifications.map((n) => ({
+              _id: n._id,
               type: n.type,
               message: n.message,
-              timestamp: new Date(n.timestamp || n.createdAt),
+              timestamp: new Date(n.timestamp || n.createdAt || Date.now()),
               payload: n.payload,
-              read: n.read
+              read: n.read,
             })),
-            ...prev
+            ...prev,
           ]);
         }
       } catch (error) {
@@ -266,9 +314,7 @@ const GarageDashboard: React.FC = () => {
       }
     };
 
-    if (user) {
-      loadNotifications();
-    }
+    loadNotifications();
   }, [user]);
 
   // Handle booking acceptance
@@ -281,7 +327,7 @@ const GarageDashboard: React.FC = () => {
       return;
     }
     try {
-      await acceptBooking(bookingId, mechanicId);
+      await acceptBooking?.(bookingId, mechanicId);
       toast.success('Booking accepted successfully', {
         position: 'top-right',
         duration: 5000,
@@ -300,7 +346,7 @@ const GarageDashboard: React.FC = () => {
   const handleDeleteMechanic = async (mechanicId: string) => {
     if (window.confirm('Are you sure you want to delete this mechanic?')) {
       try {
-        await deleteMechanic(mechanicId);
+        await deleteMechanic?.(mechanicId);
         toast.success('Mechanic deleted successfully', {
           position: 'top-right',
           duration: 5000,
@@ -316,7 +362,7 @@ const GarageDashboard: React.FC = () => {
   };
 
   // Handle profile update
-  const handleProfileUpdate = async (e: React.FormEvent) => {
+  const handleProfileUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!profileForm.name.trim()) {
       toast.error('Name is required', {
@@ -326,7 +372,7 @@ const GarageDashboard: React.FC = () => {
       return;
     }
     try {
-      await updateProfile({ name: profileForm.name, email: profileForm.email,phone:profileForm.phone });
+      await updateProfile?.({ name: profileForm.name, email: profileForm.email, phone: profileForm.phone });
       toast.success('Profile updated successfully', {
         position: 'top-right',
         duration: 5000,
@@ -354,6 +400,10 @@ const GarageDashboard: React.FC = () => {
         return 'text-green-600 bg-green-100';
       case 'cancelled':
         return 'text-red-600 bg-red-100';
+      case 'on-way':
+      case 'arrived':
+      case 'working':
+        return 'text-purple-600 bg-purple-100';
       default:
         return 'text-gray-600 bg-gray-100';
     }
@@ -367,7 +417,6 @@ const GarageDashboard: React.FC = () => {
   // Render dashboard content
   const renderDashboardContent = () => (
     <div className="space-y-6">
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -394,7 +443,7 @@ const GarageDashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Pending Requests</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{pendingBookingList.length}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{pendingBooking.length}</p>
             </div>
             <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-lg">
               <Users className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
@@ -420,7 +469,6 @@ const GarageDashboard: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* Recent Bookings */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -463,13 +511,13 @@ const GarageDashboard: React.FC = () => {
   // Render pending orders content
   const renderPendingOrdersContent = () => (
     <PendingOrders 
-      onBookingAccepted={(bookingId) => {
+      onBookingAccepted={() => {
         toast.success('Booking accepted successfully!');
-        reloadData();
+        reloadData?.();
       }}
-      onBookingRejected={(bookingId) => {
+      onBookingRejected={() => {
         toast.success('Booking rejected successfully!');
-        reloadData();
+        reloadData?.();
       }}
     />
   );
@@ -493,8 +541,8 @@ const GarageDashboard: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
                 <div>
                   <p className="text-gray-600 dark:text-gray-400">Customer</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{booking.customerName || booking.name || 'N/A'}</p>
-                  <p className="text-gray-500">{booking?.mobile || 'N/A'}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{booking.customerName || booking.customerId?.name || 'N/A'}</p>
+                  <p className="text-gray-500">{booking.customerId?.phone || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-gray-600 dark:text-gray-400">Bike Details</p>
@@ -518,7 +566,7 @@ const GarageDashboard: React.FC = () => {
                 <div className="flex space-x-2">
                   <select
                     className="flex-1 p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    onChange={(e) => handleAcceptBooking(booking._id, e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleAcceptBooking(booking._id, e.target.value)}
                   >
                     <option value="">Select Mechanic</option>
                     {mechanicList.map((mechanic) => (
@@ -533,11 +581,9 @@ const GarageDashboard: React.FC = () => {
                   >
                     Decline
                   </button>
-                  {/* Chat removed; phone number will be shared via customer details */}
                 </div>
               )}
               
-              {/* Real-time Tracking for active bookings */}
               {['accepted', 'in-progress', 'on-way', 'arrived', 'working'].includes(booking.status) && (
                 <div className="mt-4">
                   <RealTimeTracker 
@@ -581,7 +627,7 @@ const GarageDashboard: React.FC = () => {
                 setExpandedMechanicId(
                   expandedMechanicId === mechanic._id ? null : mechanic._id
                 );
-                setShowMapId(null); // Reset map when collapsing
+                setShowMapId(null);
               }}
             >
               <div className="flex justify-between items-center">
@@ -590,11 +636,11 @@ const GarageDashboard: React.FC = () => {
                     {mechanic.name || 'N/A'}
                   </p>
                   <p className="text-gray-600 dark:text-gray-300 text-sm">
-                    Phone: {mechanic.userId?.phone || 'N/A'}
+                    Phone: {mechanic.userId?.phone || mechanic.phone || 'N/A'}
                   </p>
                 </div>
                 <button
-                  onClick={(e) => {
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
                     handleDeleteMechanic(mechanic._id);
                   }}
@@ -606,12 +652,12 @@ const GarageDashboard: React.FC = () => {
 
               {expandedMechanicId === mechanic._id && (
                 <div className="mt-4 text-gray-700 dark:text-gray-300 text-sm space-y-2">
-                  <p>Email: {mechanic.userId?.email || 'N/A'}</p>
+                  <p>Email: {mechanic.userId?.email || mechanic.email || 'N/A'}</p>
                   <p>Skills: {mechanic.skills?.join(', ') || 'N/A'}</p>
 
                   {mechanic.lat && mechanic.lng && (
                     <button
-                      onClick={(e) => {
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                         e.stopPropagation();
                         setShowMapId(
                           showMapId === mechanic._id ? null : mechanic._id
@@ -652,8 +698,6 @@ const GarageDashboard: React.FC = () => {
       )}
     </div>
   );
-
-  // Chat content removed
 
   // Render billing content
   const renderBillingContent = () => (
@@ -745,7 +789,7 @@ const GarageDashboard: React.FC = () => {
               id="name"
               type="text"
               value={profileForm.name}
-              onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfileForm({ ...profileForm, name: e.target.value })}
               className="mt-1 w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-green-500 focus:border-green-500"
               placeholder="Enter your name"
               required
@@ -759,21 +803,20 @@ const GarageDashboard: React.FC = () => {
               id="email"
               type="email"
               value={profileForm.email}
-              onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfileForm({ ...profileForm, email: e.target.value })}
               className="mt-1 w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-green-500 focus:border-green-500"
               placeholder="Enter your email"
             />
           </div>
-             <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div>
+            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Phone
             </label>
             <input
-              id="number"
-              type="number"
+              id="phone"
+              type="tel"
               value={profileForm.phone}
-          
-              onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfileForm({ ...profileForm, phone: e.target.value })}
               className="mt-1 w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-green-500 focus:border-green-500"
               placeholder="Enter your phone"
             />
@@ -789,6 +832,14 @@ const GarageDashboard: React.FC = () => {
     </div>
   );
 
+  if (!user || !authContext || !bookingContext) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-red-500">Error: Context not available</p>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -799,9 +850,8 @@ const GarageDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-3">
               <div className="bg-gradient-to-r from-green-400 to-green-600 p-2 rounded-lg">
@@ -809,13 +859,12 @@ const GarageDashboard: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">Garage Dashboard</h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Welcome back, {user?.name || 'Guest'}!</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Welcome back, {user.name || 'Guest'}!</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               <ThemeToggle />
               
-              {/* Notification Bell */}
               <div className="relative notification-dropdown">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
@@ -829,7 +878,6 @@ const GarageDashboard: React.FC = () => {
                   )}
                 </button>
                 
-                {/* Notification Dropdown */}
                 {showNotifications && (
                   <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-96 overflow-y-auto">
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -841,7 +889,7 @@ const GarageDashboard: React.FC = () => {
                       ) : (
                         notifications.map((notification) => (
                           <div
-                            key={notification.id}
+                            key={notification._id}
                             className={`p-3 rounded-lg mb-2 cursor-pointer transition-colors ${
                               notification.read 
                                 ? 'bg-gray-50 dark:bg-gray-700' 
@@ -849,14 +897,13 @@ const GarageDashboard: React.FC = () => {
                             }`}
                             onClick={async () => {
                               setNotifications(prev => 
-                                prev.map(n => n.id === notification.id ? { ...n, read: true } : n)
+                                prev.map(n => n._id === notification._id ? { ...n, read: true } : n)
                               );
                               
-                              // Mark as read in database
                               try {
-                                await fetch(`http://localhost:5000/api/notifications/${notification.id}/read`, {
+                                await fetch(`http://localhost:5000/api/notifications/${notification._id}/read`, {
                                   method: 'PUT',
-                                  credentials: 'include'
+                                  credentials: 'include',
                                 });
                               } catch (error) {
                                 console.error('Failed to mark notification as read:', error);
@@ -879,11 +926,10 @@ const GarageDashboard: React.FC = () => {
                           onClick={async () => {
                             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
                             
-                            // Mark all as read in database
                             try {
                               await fetch('http://localhost:5000/api/notifications/read-all', {
                                 method: 'PUT',
-                                credentials: 'include'
+                                credentials: 'include',
                               });
                             } catch (error) {
                               console.error('Failed to mark all notifications as read:', error);
@@ -901,7 +947,7 @@ const GarageDashboard: React.FC = () => {
               
               <button
                 onClick={() => {
-                  logout();
+                  logout?.();
                   navigate('/login');
                 }}
                 className="lg:flex items-center space-x-2 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 transition-colors hidden"
@@ -916,7 +962,6 @@ const GarageDashboard: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar */}
           <div className="lg:w-64">
             <nav className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4">
               <ul className="space-y-2">
@@ -927,7 +972,6 @@ const GarageDashboard: React.FC = () => {
                   { id: 'mechanics', label: 'Mechanics', icon: Users },
                   { id: 'billing', label: 'Billing', icon: Receipt },
                   { id: 'tracking', label: 'Live Tracking', icon: MapPin },
-                  // Chat tab removed
                   { id: 'profile', label: 'Profile', icon: User },
                 ].map((item) => (
                   <li key={item.id}>
@@ -947,7 +991,7 @@ const GarageDashboard: React.FC = () => {
                 <li>
                   <button
                     onClick={() => {
-                      logout();
+                      logout?.();
                       navigate('/login');
                     }}
                     className="w-full flex items-center space-x-2 px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 transition-colors"
@@ -960,7 +1004,6 @@ const GarageDashboard: React.FC = () => {
             </nav>
           </div>
 
-          {/* Main Content */}
           <div className="flex-1">
             {activeTab === 'pending-orders' && renderPendingOrdersContent()}
             {activeTab === 'dashboard' && renderDashboardContent()}
@@ -968,26 +1011,21 @@ const GarageDashboard: React.FC = () => {
             {activeTab === 'mechanics' && renderMechanicsContent()}
             {activeTab === 'billing' && renderBillingContent()}
             {activeTab === 'tracking' && renderTrackingContent()}
-            {/* Chat tab removed */}
             {activeTab === 'profile' && renderProfileContent()}
           </div>
         </div>
       </div>
 
-      {/* Chat removed */}
-
-      {/* Billing Component */}
       <BillingComponent
-        bookingId={selectedBooking?._id}
+        bookingId={undefined}
         isOpen={billingOpen}
         onClose={() => setBillingOpen(false)}
       />
 
-      {/* Live Tracking Component */}
       {trackingOpen && (
         <div className="fixed bottom-4 left-4 z-50">
           <LiveTrackingMap
-            bookingId={selectedBooking?._id}
+            bookingId={undefined}
             isCollapsed={trackingCollapsed}
             onToggleCollapse={() => setTrackingCollapsed(!trackingCollapsed)}
           />

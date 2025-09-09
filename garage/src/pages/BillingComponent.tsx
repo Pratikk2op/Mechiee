@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Receipt, 
-  DollarSign, 
+
   Send, 
   Download, 
   Edit, 
   Trash2,
   Plus,
-  Minus,
-  FileText,
+
   User,
   Phone,
   MapPin,
@@ -63,7 +62,6 @@ const BillingComponent: React.FC<BillingComponentProps> = ({
   const [bills, setBills] = useState<Bill[]>([]);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Form state for creating/editing bills

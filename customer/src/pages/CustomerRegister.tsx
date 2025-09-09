@@ -63,7 +63,7 @@ const CustomerRegister: React.FC = () => {
       console.log('Current user location:', latitude, longitude);
   
       // Make the POST request with lat/lng included
-      const response = await fetch(`https://backend-3lsi.onrender.com/api/auth/register-customer`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register-customer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

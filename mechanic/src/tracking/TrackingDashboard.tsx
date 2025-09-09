@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useAuth } from './../contexts/AuthContext';
-import { trackingAPI } from './../services/api';
+
+
 import { Navigation, Users, Clock, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -39,7 +39,7 @@ interface ActiveTracking {
 }
 
 const TrackingDashboard: React.FC = () => {
-  const { user } = useAuth();
+
   const [activeTrackings, setActiveTrackings] = useState<ActiveTracking[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTracking, setSelectedTracking] = useState<string | null>(null);

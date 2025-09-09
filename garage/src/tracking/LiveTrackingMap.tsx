@@ -112,7 +112,7 @@ const createCustomIcon = (color: string, icon: string, label: string) => {
 const customerIcon = createCustomIcon('#3B82F6', '👤', 'Customer');
 const mechanicIcon = createCustomIcon('#10B981', '🔧', 'Mechanic');
 const garageIcon = createCustomIcon('#F59E0B', '🏢', 'Garage');
-const adminIcon = createCustomIcon('#8B5CF6', '👨‍💼', 'Admin');
+
 
 // Map updater component
 const MapUpdater: React.FC<{ 

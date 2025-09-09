@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LocationSelector from './SelectLocation';
-import { useBooking } from './../context/BookingContext';
+
 import { useAuth } from './../context/AuthContext';
 import { toast } from 'react-hot-toast';
 
@@ -38,7 +38,7 @@ const ServiceBooking: React.FC = () => {
 
       setIsLoadingAddresses(true);
       try {
-        const response = await fetch('https://backend-3lsi.onrender.com/api/customers', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/customers`, {
           method: 'GET',
           credentials: 'include',
         });
@@ -138,7 +138,7 @@ const ServiceBooking: React.FC = () => {
         throw new Error(errorData.message || 'Booking failed');
       }
 
-      const bookingData = await response.json();
+ 
       toast.success('Booking submitted! Waiting for garage to accept.');
 
       // Wait for animation (2 seconds) before redirecting

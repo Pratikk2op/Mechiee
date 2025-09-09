@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  User, 
+
   LogOut, 
   Home, 
   SendHorizonal, 
-  Bell, 
+
   MessageSquare, 
   MapPin, 
   Wrench, 
@@ -25,7 +25,7 @@ import { io, Socket } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ChatBox from '../ChatComponent/ChatBox';
-import ThemeToggle from '../ThemeToggle';
+
 
 // Fix for default markers in Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -77,10 +77,10 @@ const BookingLocationMap: React.FC<{ booking: any }> = ({ booking }) => {
   );
 };
 
-const BASE_URI = 'http://localhost:5000';
+const BASE_URI = import.meta.env.VITE_API_URL;
 
 const MechanicDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [bookings, setBookings] = useState<any[]>([]);
   const [pendingBookings, setPendingBookings] = useState<any[]>([]);

@@ -35,7 +35,7 @@ interface LocationContextType {
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backend-3lsi.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
