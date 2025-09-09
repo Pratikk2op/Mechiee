@@ -406,7 +406,7 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
     // Chat messages received
     newSocket.on(
       'receiveMessage',
-      ({ roomId, senderId, message, timestamp }) => {
+      ({ roomId, senderId, message}) => {
         console.log(`Chat message on room ${roomId} from ${senderId}: ${message}`);
         // Update chat state/UI here if needed
       }

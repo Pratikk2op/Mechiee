@@ -112,7 +112,7 @@ const createCustomIcon = (color: string, icon: string, label: string) => {
 const customerIcon = createCustomIcon('#3B82F6', '👤', 'Customer');
 const mechanicIcon = createCustomIcon('#10B981', '🔧', 'Mechanic');
 const garageIcon = createCustomIcon('#F59E0B', '🏢', 'Garage');
-const adminIcon = createCustomIcon('#8B5CF6', '👨‍💼', 'Admin');
+
 
 // Map updater component
 const MapUpdater: React.FC<{ 
@@ -144,7 +144,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   const [loading, setLoading] = useState(false);
   const [centerOnCustomer, setCenterOnCustomer] = useState(true);
   const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]); // India center
-  const [mapZoom, setMapZoom] = useState(13);
+  let mapZoom=13;
   const locationUpdateInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch booking details

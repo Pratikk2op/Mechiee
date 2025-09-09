@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu, X, User, LogOut, Settings, BookOpen } from 'lucide-react';
-import ThemeToggle from './../ThemeToggle';
+
 import { useAuth } from './../context/AuthContext';
 
 const Navbar: React.FC = () => {

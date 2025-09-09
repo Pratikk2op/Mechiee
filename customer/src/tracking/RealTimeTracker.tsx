@@ -7,7 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import { useAuth } from './../context/AuthContext';
 import { trackingAPI } from './../services/api';
 import socket from '../socket';
-import { Navigation, MapPin, User, Car, Clock, Phone, ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
+import { Navigation, MapPin ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Fix for default markers in Leaflet

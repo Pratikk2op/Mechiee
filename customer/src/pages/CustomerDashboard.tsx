@@ -77,12 +77,12 @@ const CustomerDashboard: React.FC = () => {
     lon: 0,
   });
   const [showSavedAddresses, setShowSavedAddresses] = useState(false);
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [waitingForApproval, setWaitingForApproval] = useState<string | null>(null);
   const [showLocationSelector, setShowLocationSelector] = useState(false);
-  const [notifications, setNotifications] = useState<{ id: string; type: string; message: string; timestamp: Date; payload?: any; read: boolean }[]>([]);
-  const [showNotifications, setShowNotifications] = useState(false);
+  
+  
   
 
   const [trackingOpen, setTrackingOpen] = useState(false);
@@ -133,35 +133,7 @@ const CustomerDashboard: React.FC = () => {
   }, [user]); // Add user as dependency
 
   // Load stored notifications
-  useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notifications`, {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const storedNotifications = await response.json();
-          setNotifications(prev => [
-            ...storedNotifications.map((n: any) => ({
-              id: n._id,
-              type: n.type,
-              message: n.message,
-              timestamp: new Date(n.timestamp || n.createdAt),
-              payload: n.payload,
-              read: n.read
-            })),
-            ...prev
-          ]);
-        }
-      } catch (error) {
-        console.error('Failed to load notifications:', error);
-      }
-    };
-
-    if (user) {
-      loadNotifications();
-    }
-  }, [user]);
+  
 
   // Sync formData with user data
   useEffect(() => {
@@ -192,88 +164,38 @@ const CustomerDashboard: React.FC = () => {
     socket.on('bookingStatusUpdate', handleBookingStatusUpdate);
 
     // --- Real-time booking events ---
-    const handleBookingAccepted = (data: any) => {
+    const handleBookingAccepted = () => {
       toast.success('Your booking was accepted by a garage!');
       notificationSound.play();
-      setNotifications(prev => [
-        {
-          id: `${data.bookingId || Date.now()}-accepted`,
-          type: 'booking:accepted',
-          message: data?.garageName ? `Booking accepted by ${data.garageName}` : 'Your booking was accepted by a garage!',
-          timestamp: new Date(),
-          payload: data,
-          read: false
-        },
-        ...prev
-      ]);
+    
       reloadCustomerData();
     };
-    const handleBookingAssigned = (data: any) => {
+    const handleBookingAssigned = () => {
       toast.success('A mechanic has been assigned to your booking!');
       notificationSound.play();
-      setNotifications(prev => [
-        {
-          id: `${data.bookingId || Date.now()}-assigned`,
-          type: 'booking:assigned',
-          message: data?.mechanicName ? `Mechanic ${data.mechanicName} assigned to your booking` : 'A mechanic has been assigned to your booking!',
-          timestamp: new Date(),
-          payload: data,
-          read: false
-        },
-        ...prev
-      ]);
+     
       reloadCustomerData();
     };
 
-    const handleBookingCompleted = (data: any) => {
+    const handleBookingCompleted = () => {
       toast.success('Your service has been completed!');
       notificationSound.play();
-      setNotifications(prev => [
-        {
-          id: `${data.bookingId || Date.now()}-completed`,
-          type: 'booking:completed',
-          message: 'Your service has been completed! Please rate your experience.',
-          timestamp: new Date(),
-          payload: data,
-          read: false
-        },
-        ...prev
-      ]);
+      
       reloadCustomerData();
     };
 
-    const handleBookingCancelled = (data: any) => {
+    const handleBookingCancelled = () => {
       toast.error('Your booking has been cancelled.');
       notificationSound.play();
-      setNotifications(prev => [
-        {
-          id: `${data.bookingId || Date.now()}-cancelled`,
-          type: 'booking:cancelled',
-          message: 'Your booking has been cancelled.',
-          timestamp: new Date(),
-          payload: data,
-          read: false
-        },
-        ...prev
-      ]);
+      
       reloadCustomerData();
     };
     socket.on('booking:accepted', handleBookingAccepted);
     socket.on('booking:assigned', handleBookingAssigned);
     socket.on('booking:completed', handleBookingCompleted);
     socket.on('booking:cancelled', handleBookingCancelled);
-    socket.on('notification', (data: any) => {
-      setNotifications(prev => [
-        {
-          id: data.id || `${data.type}-${Date.now()}`,
-          type: data.type,
-          message: data.message,
-          timestamp: new Date(data.timestamp),
-          payload: data.payload,
-          read: data.read || false
-        },
-        ...prev
-      ]);
+    socket.on('notification', () => {
+    
     });
     // --- End real-time booking events ---
 
@@ -468,18 +390,6 @@ const CustomerDashboard: React.FC = () => {
 
       {/* Profile Menu */}
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
-      <button
-          className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-          onClick={() => setShowNotifications((prev) => !prev)}
-          aria-label="Show notifications"
-        >
-        
-          {notifications.some(n => !n.read) && (
-            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
-              {notifications.filter(n => !n.read).length}
-            </span>
-          )}
-        </button>
         <button onClick={() => setShowMenu(!showMenu)} className="bg-white dark:bg-gray-800 rounded-full p-2 shadow mb-10">
           <User size={20} />
         </button>
@@ -922,9 +832,8 @@ const CustomerDashboard: React.FC = () => {
               </div>
               {showSavedAddresses && (
                 <div className="bg-gray-100 dark:bg-gray-700 rounded p-2 space-y-1 mb-2">
-                  {isLoadingAddresses ? (
-                    <div className="text-center text-gray-500 dark:text-gray-400 text-sm">Loading addresses...</div>
-                  ) : savedAddresses.length === 0 ? (
+                 
+                { savedAddresses.length === 0 ? (
                     <div className="text-center text-gray-500 dark:text-gray-400 text-sm">No saved addresses</div>
                   ) : (
                     savedAddresses.map((addr, idx) => (

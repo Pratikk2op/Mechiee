@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -56,7 +56,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [bikes, setBikes] = useState<Bike[]>([]);
   const [savedAddresses, setSavedAddresses] = useState<{ label: string; value: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  
 
   const reloadCustomerData = async () => {
     setLoading(true);
@@ -108,7 +108,7 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     const newSocket = io(BASE_URI, { withCredentials: true });
-    setSocket(newSocket);
+
 
     newSocket.on('connect', () => {
       console.log('[CustomerContext] Socket connected:', newSocket.id);

@@ -79,7 +79,7 @@ const HowItWorks: React.FC = () => {
          
 
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-8">
-            {steps.map((step, index) => {
+            {steps.map((step) => {
               const IconComponent = step.icon;
               const colors = getColorClasses(step.color);
 
