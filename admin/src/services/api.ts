@@ -1,6 +1,6 @@
-import type { User, Booking, ChatSession, DashboardStats, RegisterFormData, BookingFormData, ApiResponse } from '../types';
+import type { User, Booking,  DashboardStats, RegisterFormData, BookingFormData, ApiResponse } from '../types';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api`;
 
 class ApiService {
   private getHeaders() {
@@ -122,17 +122,7 @@ export const garagesAPI = {
     apiService.put<ApiResponse>(`/garages/status/${garageId}`, { status }),
 };
 
-// Chat API
-// export const chatAPI = {
-//   getAdminChat: (userId: string): Promise<ChatSession[]> =>
-//     apiService.get<ChatSession[]>(`/chats/admin/${userId}`),
-//   getChat: (chatId: string): Promise<ChatSession> =>
-//     apiService.get<ChatSession>(`/chat/${chatId}`),
-//   createChat: (participantId: string, bookingId?: string): Promise<ChatSession> =>
-//     apiService.post<ChatSession>('/chat/create', { participantId, bookingId }),
-//   sendMessage: (chatId: string, content: string): Promise<ApiResponse> =>
-//     apiService.post<ApiResponse>(`/chat/${chatId}/message`, { content })
-// };
+
 
 // Admin API
 export const adminAPI = {
@@ -188,10 +178,3 @@ export const trackingAPI = {
     apiService.get<Array<{ timestamp: Date; location: { latitude: number; longitude: number } }>>(`/tracking/history/${bookingId}`)
 };
 
-// Payments API
-export const paymentsAPI = {
-  createPaymentIntent: (bookingId: string): Promise<{ clientSecret: string }> =>
-    apiService.post<{ clientSecret: string }>('/payments/create-payment-intent', { bookingId }),
-  confirmPayment: (bookingId: string, paymentIntentId: string): Promise<ApiResponse> =>
-    apiService.post<ApiResponse>('/payments/confirm-payment', { bookingId, paymentIntentId })
-};

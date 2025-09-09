@@ -11,7 +11,7 @@ const socket: Socket = io(import.meta.env.VITE_API_URL, {
   reconnection: true,
   reconnectionDelay: 1000,
   reconnectionAttempts: 5,
-  maxReconnectionAttempts: 5,
+
 });
 
 socket.on('connect', () => {

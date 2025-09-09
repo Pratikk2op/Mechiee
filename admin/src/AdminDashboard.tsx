@@ -19,7 +19,7 @@ import type { UserRole, Booking } from './types';
 import { adminAPI } from './services/api.ts';
 import TrackingDashboard from './tracking/TrackingDashboard';
 import LiveTrackingMap from './tracking/LiveTrackingMap';
-import ChatBox from './components/ChatBox';
+
 import { toast } from 'react-hot-toast';
 
 interface DashboardStats {
@@ -580,29 +580,8 @@ const AdminDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Chat Component */}
-      {(selectedBooking || selectedUserForChat) && (
-        <ChatBox
-          bookingId={selectedBooking?._id}
-          isOpen={chatOpen}
-          onClose={() => {
-            setChatOpen(false);
-            setSelectedUserForChat(null);
-          }}
-          showAdminSupport={true}
-        />
-      )}
+  
       
-      {/* Chat Toggle Button */}
-      {(selectedBooking || selectedUserForChat) && (
-        <button
-          onClick={() => setChatOpen(!chatOpen)}
-          className="fixed bottom-4 right-4 z-50 bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-colors"
-          title="Open Chat"
-        >
-          💬
-        </button>
-      )}
 
       {/* Live Tracking Component */}
       {trackingOpen && selectedBookingForTracking && (
