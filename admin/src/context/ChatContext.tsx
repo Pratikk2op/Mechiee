@@ -34,7 +34,7 @@ const cookies = {
 };
 
 // API service - using cookies for token storage
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = `${import.meta.env.VITE_API_URL}/api`;
 
 const apiService = {
   get: async (url: string) => {

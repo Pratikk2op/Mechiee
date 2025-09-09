@@ -3,7 +3,7 @@
 import { io, Socket } from 'socket.io-client';
 import { useEffect, useState } from 'react';
 
-const socket: Socket = io('http://localhost:5000', {
+const socket: Socket = io(import.meta.env.VITE_API_URL, {
   withCredentials: true,
   transports: ['websocket', 'polling'],
   timeout: 20000,

@@ -107,7 +107,7 @@ export const AuthenticateProvider: React.FC<{ children: ReactNode }> = ({
 
   const getDetail = async () => {
     try {
-      const data = await fetch('http://localhost:5000/api/garage', {
+    const data = await fetch(`${import.meta.env.VITE_API_URL}/api/garage`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json'

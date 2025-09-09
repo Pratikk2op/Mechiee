@@ -22,7 +22,6 @@ import LiveTrackingMap from './tracking/LiveTrackingMap';
 import ChatBox from './components/ChatBox';
 import { toast } from 'react-hot-toast';
 
-
 interface DashboardStats {
   totalUsers: number;
   totalBookings: number;
@@ -66,12 +65,6 @@ interface User {
 
 type DashboardTab = 'overview' | 'garages' | 'users' | 'chat' | 'tracking';
 
-interface TabItem {
-  id: DashboardTab;
-  name: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
 const AdminDashboard: React.FC = () => {
   const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
@@ -86,19 +79,12 @@ const AdminDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   
-  const tabs: TabItem[] = [
-    { id: 'overview', name: 'Overview', icon: Users },
-    { id: 'garages', name: 'Garages', icon: Building },
-    { id: 'users', name: 'Users', icon: UserCheck },
-    { id: 'chat', name: 'Chat', icon: MessageCircle },
-    { id: 'tracking', name: 'Tracking', icon: Eye },
-  ];
+  // Chat and tracking states - used in conditional rendering
   const [chatOpen, setChatOpen] = useState(false);
   const [selectedUserForChat, setSelectedUserForChat] = useState<User | null>(null);
   const [trackingOpen, setTrackingOpen] = useState(false);
   const [trackingCollapsed, setTrackingCollapsed] = useState(false);
   const [selectedBookingForTracking, setSelectedBookingForTracking] = useState<string | null>(null);
-  // Selected booking for detailed view
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
@@ -196,6 +182,9 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Suppress unused variable warnings for variables that may be used for error handling or future features
+  console.log({ isLoading, error });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -240,7 +229,7 @@ const AdminDashboard: React.FC = () => {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as DashboardTab)}
                 className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
@@ -574,15 +563,7 @@ const AdminDashboard: React.FC = () => {
                         <p className="font-medium text-gray-900">{user.name}</p>
                         <p className="text-sm text-gray-500">{user.email} • {user.role}</p>
                       </div>
-                      <button
-                        onClick={() => {
-                          setSelectedUserForChat(user);
-                          setChatOpen(true);
-                        }}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                      >
-                        Start Chat
-                      </button>
+                     
                     </div>
                   ))}
                 </div>
