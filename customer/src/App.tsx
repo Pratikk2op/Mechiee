@@ -32,7 +32,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 function App() {
-  const { user } = useAuth();
+
   
   return (
     <>

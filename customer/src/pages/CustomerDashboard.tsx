@@ -8,8 +8,7 @@ import axios from 'axios';
 import socket from '../socket';
 import LocationSelector from '../ServiceBooking/SelectLocation';
 // Chat removed per requirement
-import RealTimeTracker from '../tracking/RealTimeTracker';
-import LiveTrackingMap from '../tracking/LiveTrackingMap';
+
 
 const BASE_URI = import.meta.env.VITE_API_URL;
 interface ServiceHistory {
