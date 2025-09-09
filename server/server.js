@@ -85,7 +85,8 @@ const corsOptions = {
         'http://localhost:5175', // Mechanic app
         'http://localhost:5176', // Mechanic app
         'http://localhost:3000', // Admin app
-        'http://localhost:3001', // Alternative admin port
+        'http://localhost:3001',
+        'https://backend-3lsi.onrender.com' // Alternative admin port
       ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

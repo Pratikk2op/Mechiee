@@ -104,12 +104,12 @@ router.post('/login', async (req, res) => {
     );
 
     // Set cookie
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none',
-      maxAge: 30 * 24 * 60 * 60 * 1000
-    });
+res.cookie("token", token, {
+  httpOnly: true,
+  secure: true,          // must be true on HTTPS
+  sameSite: "none",      // required for cross-site cookies
+  maxAge: 30 * 24 * 60 * 60 * 1000
+});
 
     return res.json({
       message: 'Login successful',

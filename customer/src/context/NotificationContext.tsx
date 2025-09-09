@@ -3,6 +3,7 @@ import socket from '../socket';
 
 export interface Notification {
   id?: string;
+  
   type: string;
   message: string;
   payload?: any;
