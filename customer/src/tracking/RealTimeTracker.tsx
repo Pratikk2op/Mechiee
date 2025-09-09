@@ -1,23 +1,30 @@
-// RealTimeTracker.tsx
-
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useAuth } from './../context/AuthContext';
-import { trackingAPI } from './../services/api';
+import { useAuth } from '../context/AuthContext';
+import { trackingAPI } from '../services/api';
 import socket from '../socket';
-import { Navigation, MapPin ChevronDown, ChevronUp, Maximize2, Minimize2 } from 'lucide-react';
+import { Navigation, MapPin, Maximize2, Minimize2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Fix for default markers in Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
+// User interface
+interface User {
+  _id: string;
+  name: string;
+  role: 'customer' | 'mechanic' | 'admin' | 'garage';
+}
 
+// Tracking API interface
+interface TrackingAPI {
+  updateLocation: (latitude: number, longitude: number, bookingId?: string) => Promise<void>;
+  startTracking: (bookingId: string) => Promise<void>;
+  stopTracking: (bookingId: string) => Promise<void>;
+  getTrackingHistory: (bookingId: string) => Promise<any[]>;
+  getBookingLocation: (bookingId: string) => Promise<BookingLocation>;
+}
+
+// Location interface
 interface Location {
   latitude: number;
   longitude: number;
@@ -27,6 +34,7 @@ interface Location {
   userRole: string;
 }
 
+// Booking location interface
 interface BookingLocation {
   bookingId: string;
   customerLocation: Location;
@@ -40,14 +48,38 @@ interface BookingLocation {
   estimatedArrival?: string;
 }
 
+// Socket event data interfaces
+interface LocationUpdateEvent {
+  bookingId: string;
+  location: {
+    latitude: number;
+    longitude: number;
+    userId: string;
+    userRole: string;
+  };
+}
+
+interface BookingUpdateEvent {
+  bookingId: string;
+}
+
+// Props interface
 interface RealTimeTrackerProps {
   bookingId?: string;
   isActive?: boolean;
   onLocationUpdate?: (location: Location) => void;
 }
 
+// Fix for default markers in Leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
 // Custom markers
-const createCustomIcon = (role: string, isOnline: boolean = true) => {
+const createCustomIcon = (role: string, isOnline: boolean = true): L.DivIcon => {
   const colors = {
     customer: '#3B82F6',
     mechanic: '#10B981',
@@ -96,7 +128,7 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
   isActive = true,
   onLocationUpdate
 }) => {
-  const { user } = useAuth();
+  const { user } = useAuth() as { user: User | null };
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [bookingLocation, setBookingLocation] = useState<BookingLocation | null>(null);
   const [trackingHistory, setTrackingHistory] = useState<Location[]>([]);
@@ -106,7 +138,7 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
   const [estimatedArrival, setEstimatedArrival] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const getCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -116,13 +148,18 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        if (!user) {
+          toast.error('User not authenticated');
+          return;
+        }
+
         const location: Location = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           timestamp: new Date(),
-          userId: user?._id || '',
-          userName: user?.name || '',
-          userRole: user?.role || ''
+          userId: user._id,
+          userName: user.name,
+          userRole: user.role
         };
 
         setCurrentLocation(location);
@@ -149,22 +186,27 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
       await trackingAPI.updateLocation(location.latitude, location.longitude, bookingId);
       
       // Emit location update via socket
-      socket.emit('locationUpdate', {
-        bookingId,
-        location: {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          userId: location.userId,
-          userRole: location.userRole
-        }
-      });
+      if (bookingId) {
+        socket.emit('locationUpdate', {
+          bookingId,
+          location: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            userId: location.userId,
+            userRole: location.userRole
+          }
+        } as LocationUpdateEvent);
+      }
     } catch (error) {
       console.error('Error updating location on server:', error);
     }
   };
 
   const startTracking = useCallback(async () => {
-    if (!bookingId) return;
+    if (!bookingId) {
+      toast.error('No booking ID provided');
+      return;
+    }
 
     try {
       await trackingAPI.startTracking(bookingId);
@@ -186,7 +228,10 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
   }, [bookingId, getCurrentLocation]);
 
   const stopTracking = useCallback(async () => {
-    if (!bookingId) return;
+    if (!bookingId) {
+      toast.error('No booking ID provided');
+      return;
+    }
 
     try {
       await trackingAPI.stopTracking(bookingId);
@@ -194,6 +239,7 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
       
       if (locationIntervalRef.current) {
         clearInterval(locationIntervalRef.current);
+        locationIntervalRef.current = null;
       }
       
       toast.success('Location tracking stopped');
@@ -203,7 +249,7 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
     }
   }, [bookingId]);
 
-  const calculateETA = useCallback((from: Location, to: Location) => {
+  const calculateETA = useCallback((from: Location, to: Location): string => {
     const R = 6371; // Earth's radius in km
     const dLat = (to.latitude - from.latitude) * Math.PI / 180;
     const dLon = (to.longitude - from.longitude) * Math.PI / 180;
@@ -230,14 +276,13 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
   useEffect(() => {
     if (!bookingId || !isActive) return;
 
-    const handleLocationUpdate = (data: any) => {
+    const handleLocationUpdate = (data: LocationUpdateEvent) => {
       if (data.bookingId === bookingId) {
-        // Update booking location data
         fetchBookingLocation();
       }
     };
 
-    const handleBookingUpdate = (data: any) => {
+    const handleBookingUpdate = (data: BookingUpdateEvent) => {
       if (data.bookingId === bookingId) {
         fetchBookingLocation();
       }
@@ -254,16 +299,17 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
 
   // Auto-start tracking for mechanics and customers
   useEffect(() => {
-    if (bookingId && isActive && (user?.role === 'mechanic' || user?.role === 'customer')) {
+    if (bookingId && isActive && user && (user.role === 'mechanic' || user.role === 'customer')) {
       startTracking();
     }
 
     return () => {
       if (locationIntervalRef.current) {
         clearInterval(locationIntervalRef.current);
+        locationIntervalRef.current = null;
       }
     };
-  }, [bookingId, isActive, user?.role, startTracking]);
+  }, [bookingId, isActive, user, startTracking]);
 
   // Update map center based on locations
   useEffect(() => {
@@ -288,7 +334,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
     const fetchTrackingHistory = async () => {
       try {
         const history = await trackingAPI.getTrackingHistory(bookingId);
-        // Transform API result to Location[]
         const transformedHistory: Location[] = history.map((item: any) => ({
           latitude: item.location.latitude,
           longitude: item.location.longitude,
@@ -314,7 +359,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
       const data = await trackingAPI.getBookingLocation(bookingId);
       setBookingLocation(data);
       
-      // Calculate ETA if we have both mechanic and customer locations
       if (data.mechanicLocation && data.customerLocation) {
         const eta = calculateETA(data.mechanicLocation, data.customerLocation);
         setEstimatedArrival(eta);
@@ -335,11 +379,12 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
     return () => {
       if (locationIntervalRef.current) {
         clearInterval(locationIntervalRef.current);
+        locationIntervalRef.current = null;
       }
     };
   }, []);
 
-  const generatePolyline = () => {
+  const generatePolyline = (): [number, number][] => {
     if (trackingHistory.length < 2) return [];
     
     return trackingHistory.map(location => [location.latitude, location.longitude] as [number, number]);
@@ -351,7 +396,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
     <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transition-all duration-300 ${
       isExpanded ? 'w-full h-96' : 'w-full'
     }`}>
-      {/* Header */}
       <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
         <div className="flex items-center space-x-2">
           <Navigation size={20} className="text-blue-500" />
@@ -377,14 +421,13 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
             className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
             title={isCollapsed ? "Expand" : "Collapse"}
           >
-            {isCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {isCollapsed ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
         </div>
       </div>
 
       {!isCollapsed && (
         <>
-          {/* Map Container */}
           <div className={`relative ${isExpanded ? 'h-80' : 'h-64'} w-full`}>
             <MapContainer
               center={mapCenter}
@@ -398,7 +441,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
               />
               <MapUpdater center={mapCenter} zoom={mapZoom} />
 
-              {/* Current Location Marker */}
               {currentLocation && (
                 <Marker
                   position={[currentLocation.latitude, currentLocation.longitude]}
@@ -415,7 +457,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
                 </Marker>
               )}
 
-              {/* Service Location Marker */}
               {bookingLocation && (
                 <Marker
                   position={[bookingLocation.serviceLocation.latitude, bookingLocation.serviceLocation.longitude]}
@@ -432,7 +473,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
                 </Marker>
               )}
 
-              {/* Customer Location Marker */}
               {bookingLocation?.customerLocation && (
                 <Marker
                   position={[bookingLocation.customerLocation.latitude, bookingLocation.customerLocation.longitude]}
@@ -450,7 +490,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
                 </Marker>
               )}
 
-              {/* Mechanic Location Marker */}
               {bookingLocation?.mechanicLocation && (
                 <Marker
                   position={[bookingLocation.mechanicLocation.latitude, bookingLocation.mechanicLocation.longitude]}
@@ -468,7 +507,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
                 </Marker>
               )}
 
-              {/* Tracking History Polyline */}
               {trackingHistory.length > 1 && (
                 <Polyline
                   positions={generatePolyline()}
@@ -480,7 +518,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
             </MapContainer>
           </div>
 
-          {/* Controls */}
           <div className="p-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
             <div className="flex flex-wrap gap-2">
               <button
@@ -506,7 +543,6 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
               )}
             </div>
 
-            {/* Status Bar */}
             <div className="mt-2 flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
               <div className="flex items-center space-x-4">
                 <span>Status: {isTracking ? 'Active' : 'Inactive'}</span>
