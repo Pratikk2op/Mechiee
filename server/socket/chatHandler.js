@@ -26,6 +26,8 @@ function initSocket(server) {
           'http://localhost:5176', // Mechanic app
           'http://localhost:3000', // Admin app
           'http://localhost:3001', // Alternative admin port
+          'mechiee.netlify.app',
+          'https://mechiee.onrender.com',
           process.env.FRONTEND_URL,
         ].filter(Boolean);
 
