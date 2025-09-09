@@ -76,21 +76,31 @@ const userSocketMap = new Map();
 app.set('io', io);
 
 // CORS configuration
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [process.env.FRONTEND_URL]
+  : [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5175',
+      'http://localhost:5176',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://backend-3lsi.onrender.com'
+    ];
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL] 
-    : [
-        'http://localhost:5173', // Customer app
-        'http://localhost:5174', // Garage app  
-        'http://localhost:5175', // Mechanic app
-        'http://localhost:5176', // Mechanic app
-        'http://localhost:3000', // Admin app
-        'http://localhost:3001',
-        'https://backend-3lsi.onrender.com' // Alternative admin port
-      ],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like Postman or server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization','X-Requested-With']
 };
 
 app.use(cors(corsOptions));
