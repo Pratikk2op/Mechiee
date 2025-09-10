@@ -71,7 +71,8 @@ const MechanicRegister: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/mechanic/signup', {
+      const response = await fetch(
+        import.meta.env.VITE_API_URL + '/api/auth/mechanic/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

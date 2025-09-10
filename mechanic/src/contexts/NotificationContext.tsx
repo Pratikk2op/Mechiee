@@ -35,12 +35,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         },
         ...prev,
       ]);
-      // Optionally trigger a toast here
     };
+  
     socket.on('notification', handler);
-    return () => socket.off('notification', handler);
+  
+    // ✅ cleanup
+    return () => {
+      socket.off('notification', handler);
+    };
   }, []);
-
   const markAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };

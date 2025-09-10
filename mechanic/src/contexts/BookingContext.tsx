@@ -1,19 +1,19 @@
+// src/contexts/BookingContext.tsx
 import React, {
   createContext,
   useContext,
   useEffect,
   useState,
-  
   useCallback,
 } from 'react';
-import type{ReactNode} from "react"
+import type { ReactNode } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
 // Base URI for API and Socket
-const BASE_URI = 'http://localhost:5000';
+const BASE_URI = import.meta.env.VITE_API_URL as string;
 
 // Types (adjust as necessary)
 interface Booking {
@@ -23,8 +23,8 @@ interface Booking {
   status: 'pending' | 'accepted' | 'completed' | 'cancelled';
   totalAmount?: number;
   createdAt?: string;
-  garage?: string | { id: string; name: string; phone: string };
-  mechanic?: string | { id: string; name: string; phone: string };
+  garage?: string | { id: string; name: string; phone: string; _id?: string };
+  mechanic?: string | { id: string; name: string; phone: string; _id?: string };
   customerId?: string;
   bikeNumber?: string;
   brand?: string;
@@ -82,9 +82,10 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
 }) => {
   const { user } = useAuth();
   const [bookingList, setBookingList] = useState<Booking[]>([]);
-  const [pendingBooking, setPendingBooking] = useState<Booking[]>([]);
+  // renamed to match BookingContextType
+  const [pendingBookingList, setPendingBookingList] = useState<Booking[]>([]);
   const [mechanicList, setMechanicList] = useState<Mechanic[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading] = useState<boolean>(false);
   const [socket, setSocket] = useState<Socket | null>(null);
 
   // Reload bookings and mechanics data
@@ -92,15 +93,34 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
     if (!user) {
       setBookingList([]);
       setMechanicList([]);
+      setPendingBookingList([]);
       return;
     }
-  },[])
 
+    try {
+      // example API calls - replace endpoints as necessary
+      const [bookingsRes, mechanicsRes, pendingRes] = await Promise.all([
+        axios.get(`${BASE_URI}/api/bookings`, { withCredentials: true }),
+        axios.get(`${BASE_URI}/api/users/mechanics`, { withCredentials: true }),
+        axios.get(`${BASE_URI}/api/bookings/pending`, { withCredentials: true }),
+      ]);
 
+      const bookingsData: Booking[] = bookingsRes.data?.data ?? [];
+      const mechanicsData: Mechanic[] = mechanicsRes.data?.data ?? [];
+      const pendingData: Booking[] = pendingRes.data?.data ?? [];
 
+      setBookingList(bookingsData);
+      setMechanicList(mechanicsData);
+      setPendingBookingList(pendingData);
+    } catch (err: any) {
+      console.error('reloadData error:', err?.response?.data ?? err.message ?? err);
+      toast.error('Failed to reload data');
+    }
+  }, [user]);
 
   // Notification helper function
   const notifySystem = (title: string, body: string) => {
+    if (typeof Notification === 'undefined') return;
     if (Notification.permission === 'granted') {
       new Notification(title, {
         body,
@@ -130,19 +150,14 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
         { withCredentials: true, timeout: 5000 }
       );
       toast.success('Booking accepted and mechanic assigned');
-      notifySystem(
-        'Booking Accepted',
-        'Mechanic assigned successfully.'
-      );
+      notifySystem('Booking Accepted', 'Mechanic assigned successfully.');
       await reloadData();
     } catch (err: any) {
       console.error(
         'Accept booking error:',
         err.response?.data?.message || err.message
       );
-      toast.error(
-        err.response?.data?.message || 'Failed to accept booking'
-      );
+      toast.error(err.response?.data?.message || 'Failed to accept booking');
     }
   };
 
@@ -161,9 +176,7 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
         'Delete mechanic error:',
         err.response?.data?.message || err.message
       );
-      toast.error(
-        err.response?.data?.message || 'Failed to delete mechanic'
-      );
+      toast.error(err.response?.data?.message || 'Failed to delete mechanic');
     }
   };
 
@@ -172,10 +185,7 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
     .filter((b) => b.status === 'completed')
     .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
 
-  const pendingBookingList = bookingList.filter((b) => b.status === 'pending');
-  const confirmedBookingList = bookingList.filter(
-    (b) => b.status === 'accepted'
-  );
+  const confirmedBookingList = bookingList.filter((b) => b.status === 'accepted');
 
   // Memoized join booking room function
   const joinBookingRoom = useCallback(
@@ -209,6 +219,7 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
       // Clear data and disconnect socket if no user
       setBookingList([]);
       setMechanicList([]);
+      setPendingBookingList([]);
       if (socket) {
         socket.disconnect();
         setSocket(null);
@@ -231,13 +242,14 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
       console.log('Socket connected');
 
       // Register user info
-      newSocket.emit('register', { userId: user._id, role: user.role });
+      // prefer _id but fall back to id if present
+      newSocket.emit('register', { userId: (user as any)._id ?? (user as any).id, role: (user as any).role });
 
       // Garage owners join their garage room
-      if (user.role === 'garage' && user.garageId) {
-        newSocket.emit('joinRoom', user.garageId.toString());
+      if ((user as any).role === 'garage' && (user as any).garageId) {
+        newSocket.emit('joinRoom', (user as any).garageId.toString());
         newSocket.emit('joinGarageRoom');
-        console.log(`Garage user joined room: ${user.garageId}`);
+        console.log(`Garage user joined room: ${(user as any).garageId}`);
       }
     });
 
@@ -255,8 +267,7 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
         if (duplicate) return prev;
         return [data, ...prev].sort(
           (a, b) =>
-            new Date(b.createdAt || '').getTime() -
-            new Date(a.createdAt || '').getTime()
+            new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()
         );
       });
     });
@@ -266,12 +277,14 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
       toast.success(`Booking accepted by ${data.garageName}!`);
       notifySystem('Booking Accepted', `Booking was accepted by ${data.garageName}.`);
       setBookingList((prev) => prev.filter((b) => b._id !== data.bookingId));
+      setPendingBookingList((prev) => prev.filter((b) => b._id !== data.bookingId));
     });
 
     // Booking rejected by another garage
     newSocket.on('bookingRejected', (data: { bookingId: string; rejectedBy: string; garageName: string; reason?: string }) => {
       toast.error(`Booking rejected by ${data.garageName}`);
       setBookingList((prev) => prev.filter((b) => b._id !== data.bookingId));
+      setPendingBookingList((prev) => prev.filter((b) => b._id !== data.bookingId));
     });
 
     // Booking accepted event for customer & others
@@ -303,10 +316,10 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
             )
             .sort(
               (a, b) =>
-                new Date(b.createdAt || '').getTime() -
-                new Date(a.createdAt || '').getTime()
+                new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()
             )
         );
+        setPendingBookingList((prev) => prev.filter((b) => b._id !== data.bookingId));
       }
     );
 
@@ -319,14 +332,11 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
         setBookingList((prev) =>
           prev
             .map((b) =>
-              b._id === data.bookingId
-                ? { ...b, ...data.bookingDetails, status: 'accepted' }
-                : b
+              b._id === data.bookingId ? { ...b, ...data.bookingDetails, status: 'accepted' } : b
             )
             .sort(
               (a, b) =>
-                new Date(b.createdAt || '').getTime() -
-                new Date(a.createdAt || '').getTime()
+                new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()
             )
         );
       }
@@ -341,12 +351,9 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
         setBookingList((prev) =>
           prev
             .filter((b) => b._id !== data.bookingId)
-            .sort(
-              (a, b) =>
-                new Date(b.createdAt || '').getTime() -
-                new Date(a.createdAt || '').getTime()
-            )
+            .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime())
         );
+        setPendingBookingList((prev) => prev.filter((b) => b._id !== data.bookingId));
       }
     );
 
@@ -361,24 +368,16 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
     });
 
     // Live location updates
-    newSocket.on(
-      'locationUpdate',
-      ({ bookingId, userId, lat, lng }) => {
-        console.log(
-          `Location update: booking=${bookingId} user=${userId} lat=${lat} lng=${lng}`
-        );
-        // You can update location state here if required
-      }
-    );
+    newSocket.on('locationUpdate', ({ bookingId, userId, lat, lng }) => {
+      console.log(`Location update: booking=${bookingId} user=${userId} lat=${lat} lng=${lng}`);
+      // You can update location state here if required
+    });
 
     // Chat messages received
-    newSocket.on(
-      'receiveMessage',
-      ({ roomId, senderId, message, timestamp }) => {
-        console.log(`Chat message on room ${roomId} from ${senderId}: ${message}`);
-        // Update chat state/UI here if needed
-      }
-    );
+    newSocket.on('receiveMessage', ({ roomId, senderId, message }) => {
+      console.log(`Chat message on room ${roomId} from ${senderId}: ${message}`);
+      // Update chat state/UI here if needed
+    });
 
     return () => {
       newSocket.disconnect();
@@ -393,18 +392,18 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
 
     bookingList.forEach((booking) => {
       if (
-        (user.role === 'customer' && booking.customerId === user._id) ||
+        (user.role === 'customer' && booking.customerId === (user as any)._id) ||
         (user.role === 'garage' &&
           booking.garage &&
-          ((booking.garage as any)?._id === user.garageId ||
-            booking.garage === user.garageId)) ||
+          ((booking.garage as any)?._id === (user as any).garageId || booking.garage === (user as any).garageId)) ||
         (user.role === 'mechanic' &&
           booking.mechanic &&
-          ((booking.mechanic as any)?._id === user._id || booking.mechanic === user._id))
+          ((booking.mechanic as any)?._id === (user as any)._id || booking.mechanic === (user as any)._id))
       ) {
         joinBookingRoom(booking._id);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingList, socket, user, joinBookingRoom]);
 
   return (
@@ -415,8 +414,8 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({
         loading,
         acceptBooking,
         deleteMechanic,
-        pendingBooking,
-        confirmedBookingList,
+        pendingBookingList,
+        confirmedBookingList: confirmedBookingList,
         totalRevenue,
         reloadData,
         joinBookingRoom,

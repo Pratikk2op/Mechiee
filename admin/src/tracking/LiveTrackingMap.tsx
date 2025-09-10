@@ -144,7 +144,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   const [loading, setLoading] = useState(false);
   const [centerOnCustomer, setCenterOnCustomer] = useState(true);
   const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]); // India center
-  const [mapZoom, setMapZoom] = useState(13);
+  const mapZoom=13;
   const locationUpdateInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch booking details

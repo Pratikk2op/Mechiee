@@ -43,7 +43,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMechanicId, setSelectedMechanicId] = useState<string>('');
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [, setSelectedBookingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
 

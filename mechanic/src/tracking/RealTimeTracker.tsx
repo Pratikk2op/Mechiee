@@ -106,7 +106,8 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
   const [estimatedArrival, setEstimatedArrival] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const locationIntervalRef = useRef<NodeJS.Timeout>();
+  const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
 
   const getCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -288,7 +289,7 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
     const fetchTrackingHistory = async () => {
       try {
         const history = await trackingAPI.getTrackingHistory(bookingId);
-        setTrackingHistory(history);
+        setTrackingHistory(history as unknown as Location[]);
       } catch (error) {
         console.error('Error fetching tracking history:', error);
       }
@@ -303,11 +304,11 @@ const RealTimeTracker: React.FC<RealTimeTrackerProps> = ({
 
     try {
       const data = await trackingAPI.getBookingLocation(bookingId);
-      setBookingLocation(data);
+      setBookingLocation(data as unknown as BookingLocation);
       
       // Calculate ETA if we have both mechanic and customer locations
       if (data.mechanicLocation && data.customerLocation) {
-        const eta = calculateETA(data.mechanicLocation, data.customerLocation);
+        const eta = calculateETA(data.mechanicLocation as unknown as Location , data.customerLocation as unknown as Location);
         setEstimatedArrival(eta);
       }
     } catch (error) {

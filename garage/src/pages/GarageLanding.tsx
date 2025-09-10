@@ -14,7 +14,7 @@ import {
   ArrowRight,
   Wrench,
   Star,
-  Clock
+
 } from 'lucide-react';
 import ThemeToggle from '../ThemeToggle';
 

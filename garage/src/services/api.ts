@@ -130,18 +130,6 @@ export const garagesAPI = {
     apiService.put<ApiResponse>(`/garages/status/${garageId}`, { status }),
 };
 
-// Chat API
-// export const chatAPI = {
-//   getAdminChat: (userId: string): Promise<ChatSession[]> =>
-//     apiService.get<ChatSession[]>(`/chats/admin/${userId}`),
-//   getChat: (chatId: string): Promise<ChatSession> =>
-//     apiService.get<ChatSession>(`/chat/${chatId}`),
-//   createChat: (participantId: string, bookingId?: string): Promise<ChatSession> =>
-//     apiService.post<ChatSession>('/chat/create', { participantId, bookingId }),
-//   sendMessage: (chatId: string, content: string): Promise<ApiResponse> =>
-//     apiService.post<ApiResponse>(`/chat/${chatId}/message`, { content })
-// };
-
 // Admin API
 export const adminAPI = {
   getDashboardStats: (): Promise<DashboardStats> =>
@@ -182,20 +170,43 @@ export const adminAPI = {
 export const trackingAPI = {
   updateLocation: (latitude: number, longitude: number, bookingId?: string): Promise<ApiResponse> =>
     apiService.put<ApiResponse>('/tracking/location', { latitude, longitude, bookingId }),
-  getBookingLocation: (bookingId: string): Promise<{ latitude: number; longitude: number }> =>
-    apiService.get<{ latitude: number; longitude: number }>(`/tracking/booking/${bookingId}`),
-  getMechanicLocation: (mechanicId: string): Promise<{ latitude: number; longitude: number }> =>
-    apiService.get<{ latitude: number; longitude: number }>(`/tracking/mechanic/${mechanicId}`),
-  getCustomerLocation: (customerId: string): Promise<{ latitude: number; longitude: number }> =>
-    apiService.get<{ latitude: number; longitude: number }>(`/tracking/customer/${customerId}`),
+  
+  getBookingLocation: (bookingId: string): Promise<{
+    bookingId: string;
+    customerLocation: Location;
+    mechanicLocation?: Location;
+    serviceLocation: {
+      latitude: number;
+      longitude: number;
+      address: string;
+    };
+    status: string;
+    estimatedArrival?: string;
+  }> => apiService.get(`/tracking/booking/${bookingId}`),
+  
+  getMechanicLocation: (mechanicId: string): Promise<Location> =>
+    apiService.get<Location>(`/tracking/mechanic/${mechanicId}`),
+  
+  getCustomerLocation: (customerId: string): Promise<Location> =>
+    apiService.get<Location>(`/tracking/customer/${customerId}`),
+  
   startTracking: (bookingId: string): Promise<ApiResponse> =>
     apiService.post<ApiResponse>(`/tracking/start/${bookingId}`, {}),
+  
   stopTracking: (bookingId: string): Promise<ApiResponse> =>
     apiService.post<ApiResponse>(`/tracking/stop/${bookingId}`, {}),
-  getTrackingHistory: (bookingId: string): Promise<Array<{ timestamp: Date; location: { latitude: number; longitude: number } }>> =>
-    apiService.get<Array<{ timestamp: Date; location: { latitude: number; longitude: number } }>>(`/tracking/history/${bookingId}`)
+  
+  getTrackingHistory: (bookingId: string): Promise<Array<{ 
+    timestamp: Date; 
+    location: { 
+      latitude: number; 
+      longitude: number; 
+      userId?: string;
+      userName?: string;
+      userRole?: string;
+    } 
+  }>> => apiService.get(`/tracking/history/${bookingId}`)
 };
-
 // Payments API
 export const paymentsAPI = {
   createPaymentIntent: (bookingId: string): Promise<{ clientSecret: string }> =>

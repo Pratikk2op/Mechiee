@@ -24,7 +24,7 @@ import toast from 'react-hot-toast';
 import { io, Socket } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import ChatBox from '../ChatComponent/ChatBox';
+
 
 
 // Fix for default markers in Leaflet
@@ -85,11 +85,11 @@ const MechanicDashboard: React.FC = () => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [pendingBookings, setPendingBookings] = useState<any[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMinimized, setChatMinimized] = useState(false);
+  
+ 
   const [mapOpen, setMapOpen] = useState(false);
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [, setSocket] = useState<Socket | null>(null);
+  const [, setNotifications] = useState<any[]>([]);
   const [completedJobs, setCompletedJobs] = useState<any[]>([]);
   const navigate = useNavigate();
 
@@ -425,7 +425,7 @@ const MechanicDashboard: React.FC = () => {
               key={booking._id}
               onClick={() => {
                 setSelectedBooking(booking);
-                setChatOpen(true);
+            
               }}
               className="w-full p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
@@ -521,15 +521,7 @@ const MechanicDashboard: React.FC = () => {
       </div>
 
       {/* Chat Component */}
-      {selectedBooking && (
-        <ChatBox
-          bookingId={selectedBooking._id}
-          isOpen={chatOpen}
-          onClose={() => setChatOpen(false)}
-          onMinimize={() => setChatMinimized(!chatMinimized)}
-          isMinimized={chatMinimized}
-        />
-      )}
+    
       
       {/* Chat 
 

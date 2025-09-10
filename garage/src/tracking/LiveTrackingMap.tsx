@@ -144,7 +144,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   const [loading, setLoading] = useState(false);
   const [centerOnCustomer, setCenterOnCustomer] = useState(true);
   const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]); // India center
-  const [mapZoom, setMapZoom] = useState(13);
+  let mapZoom=13;
   const locationUpdateInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch booking details
@@ -192,8 +192,8 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       };
 
       setBooking(mockBooking);
-      setCustomerLocation(mockBooking.customerLocation);
-      setMechanicLocation(mockBooking.mechanicLocation);
+      setCustomerLocation(mockBooking.customerLocation || null);
+      setMechanicLocation(mockBooking.mechanicLocation || null);
       
       // Set initial map center
       if (mockBooking.customerLocation) {
@@ -460,8 +460,8 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
               />
               
               <MapUpdater 
-                customerLocation={customerLocation}
-                mechanicLocation={mechanicLocation}
+                customerLocation={customerLocation || undefined}
+                mechanicLocation={mechanicLocation || undefined}
                 centerOnCustomer={centerOnCustomer}
               />
 

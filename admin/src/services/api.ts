@@ -161,20 +161,46 @@ export const adminAPI = {
 };
 
 // Tracking API
+
+
+// In api.ts, update the trackingAPI object:
 export const trackingAPI = {
   updateLocation: (latitude: number, longitude: number, bookingId?: string): Promise<ApiResponse> =>
     apiService.put<ApiResponse>('/tracking/location', { latitude, longitude, bookingId }),
-  getBookingLocation: (bookingId: string): Promise<{ latitude: number; longitude: number }> =>
-    apiService.get<{ latitude: number; longitude: number }>(`/tracking/booking/${bookingId}`),
-  getMechanicLocation: (mechanicId: string): Promise<{ latitude: number; longitude: number }> =>
-    apiService.get<{ latitude: number; longitude: number }>(`/tracking/mechanic/${mechanicId}`),
-  getCustomerLocation: (customerId: string): Promise<{ latitude: number; longitude: number }> =>
-    apiService.get<{ latitude: number; longitude: number }>(`/tracking/customer/${customerId}`),
+  
+  getBookingLocation: (bookingId: string): Promise<{
+    bookingId: string;
+    customerLocation: Location;
+    mechanicLocation?: Location;
+    serviceLocation: {
+      latitude: number;
+      longitude: number;
+      address: string;
+    };
+    status: string;
+    estimatedArrival?: string;
+  }> => apiService.get(`/tracking/booking/${bookingId}`),
+  
+  getMechanicLocation: (mechanicId: string): Promise<Location> =>
+    apiService.get<Location>(`/tracking/mechanic/${mechanicId}`),
+  
+  getCustomerLocation: (customerId: string): Promise<Location> =>
+    apiService.get<Location>(`/tracking/customer/${customerId}`),
+  
   startTracking: (bookingId: string): Promise<ApiResponse> =>
     apiService.post<ApiResponse>(`/tracking/start/${bookingId}`, {}),
+  
   stopTracking: (bookingId: string): Promise<ApiResponse> =>
     apiService.post<ApiResponse>(`/tracking/stop/${bookingId}`, {}),
-  getTrackingHistory: (bookingId: string): Promise<Array<{ timestamp: Date; location: { latitude: number; longitude: number } }>> =>
-    apiService.get<Array<{ timestamp: Date; location: { latitude: number; longitude: number } }>>(`/tracking/history/${bookingId}`)
+  
+  getTrackingHistory: (bookingId: string): Promise<Array<{ 
+    timestamp: Date; 
+    location: { 
+      latitude: number; 
+      longitude: number; 
+      userId?: string;
+      userName?: string;
+      userRole?: string;
+    } 
+  }>> => apiService.get(`/tracking/history/${bookingId}`)
 };
-

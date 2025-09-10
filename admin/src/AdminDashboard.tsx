@@ -15,18 +15,13 @@ import {
   Calendar,
   LogOut
 } from 'lucide-react';
-import type { UserRole } from './types';
+import type {  User as ImportedUser, DashboardStats as ImportedDashboardStats } from './types';
 import { adminAPI } from './services/api';
 import TrackingDashboard from './tracking/TrackingDashboard';
 import { toast } from 'react-hot-toast';
 
-interface DashboardStats {
-  totalUsers: number;
-  totalBookings: number;
-  totalGarages: number;
-  totalMechanics: number;
-  pendingBookings: number;
-  completedBookings: number;
+// Local interfaces that extend imported types to match API responses
+interface DashboardStats extends Omit<ImportedDashboardStats, 'revenue'> {
   totalRevenue: number;
   activeUsers: number;
 }
@@ -48,17 +43,9 @@ interface PendingGarage {
   };
 }
 
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: UserRole;
-  isActive: boolean;
-  isVerified: boolean;
-  accountStatus: string;
-  createdAt: Date;
-  lastLoginAt?: Date;
+// Local User interface that ensures _id is always present
+interface User extends Omit<ImportedUser, '_id'> {
+  _id: string; // Make _id required instead of optional
 }
 
 type DashboardTab = 'overview' | 'garages' | 'users' | 'chat' | 'tracking';
@@ -96,9 +83,15 @@ const AdminDashboard: React.FC = () => {
         adminAPI.getUsers()
       ]);
 
-      setStats(statsRes);
-      setPendingGarages(garagesRes);
-      setUsers(usersRes);
+      // Type assertion to match our local interfaces
+      setStats(statsRes as unknown as DashboardStats);
+      setPendingGarages(garagesRes as unknown as PendingGarage[]);
+      setUsers(usersRes as User[]);
+
+      console.log("dashboard result", statsRes);
+      console.log("dashboard result", garagesRes);
+      console.log("User result", usersRes);
+
     } catch (error: unknown) {
       console.error('Error fetching dashboard data:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load dashboard data';
