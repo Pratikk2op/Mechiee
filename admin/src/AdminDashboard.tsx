@@ -15,11 +15,9 @@ import {
   Calendar,
   LogOut
 } from 'lucide-react';
-import type { UserRole, Booking } from './types';
-import { adminAPI } from './services/api.ts';
+import type { UserRole } from './types';
+import { adminAPI } from './services/api';
 import TrackingDashboard from './tracking/TrackingDashboard';
-import LiveTrackingMap from './tracking/LiveTrackingMap';
-
 import { toast } from 'react-hot-toast';
 
 interface DashboardStats {
@@ -78,14 +76,6 @@ const AdminDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
-  
-  // Chat and tracking states - used in conditional rendering
-  const [chatOpen, setChatOpen] = useState(false);
-  const [selectedUserForChat, setSelectedUserForChat] = useState<User | null>(null);
-  const [trackingOpen, setTrackingOpen] = useState(false);
-  const [trackingCollapsed, setTrackingCollapsed] = useState(false);
-  const [selectedBookingForTracking, setSelectedBookingForTracking] = useState<string | null>(null);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
     if (user?.role !== 'admin') {
@@ -96,9 +86,10 @@ const AdminDashboard: React.FC = () => {
     fetchDashboardData();
   }, [user, navigate]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (): Promise<void> => {
     try {
       setIsLoading(true);
+      setError(null);
       const [statsRes, garagesRes, usersRes] = await Promise.all([
         adminAPI.getDashboardStats(),
         adminAPI.getPendingGarages(),
@@ -108,39 +99,42 @@ const AdminDashboard: React.FC = () => {
       setStats(statsRes);
       setPendingGarages(garagesRes);
       setUsers(usersRes);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching dashboard data:', error);
-      setError('Failed to load dashboard data');
-      // If you have a toast notification system, you can uncomment this:
-      // toast.error('Failed to load dashboard data');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load dashboard data';
+      setError(errorMessage);
+      toast.error('Failed to load dashboard data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleVerifyGarage = async (garageId: string) => {
+  const handleVerifyGarage = async (garageId: string): Promise<void> => {
     try {
       await adminAPI.verifyGarage(garageId);
       toast.success('Garage verified successfully');
-      fetchDashboardData();
+      await fetchDashboardData();
     } catch (error) {
       console.error('Error verifying garage:', error);
       toast.error('Failed to verify garage');
     }
   };
 
-  const handleRejectGarage = async (garageId: string, reason: string) => {
+  const handleRejectGarage = async (garageId: string, reason: string): Promise<void> => {
     try {
       await adminAPI.rejectGarage(garageId, reason);
       toast.success('Garage rejected');
-      fetchDashboardData();
+      await fetchDashboardData();
     } catch (error) {
       console.error('Error rejecting garage:', error);
       toast.error('Failed to reject garage');
     }
   };
 
-  const handleUserAction = async (userId: string, action: 'activate' | 'deactivate' | 'suspend' | 'reactivate') => {
+  const handleUserAction = async (
+    userId: string, 
+    action: 'activate' | 'deactivate' | 'suspend' | 'reactivate'
+  ): Promise<void> => {
     try {
       switch (action) {
         case 'activate':
@@ -150,45 +144,73 @@ const AdminDashboard: React.FC = () => {
           await adminAPI.deactivateUser(userId);
           break;
         case 'suspend':
-          await adminAPI.suspendUser(userId,"NA");
+          await adminAPI.suspendUser(userId, "NA");
           break;
         case 'reactivate':
           await adminAPI.reactivateUser(userId);
           break;
+        default:
+          throw new Error(`Unknown action: ${action}`);
       }
       toast.success(`User ${action}d successfully`);
-      fetchDashboardData();
+      await fetchDashboardData();
     } catch (error) {
       console.error(`Error ${action}ing user:`, error);
       toast.error(`Failed to ${action} user`);
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): string => {
     switch (status) {
-      case 'active': return 'text-green-600 bg-green-100';
-      case 'suspended': return 'text-yellow-600 bg-yellow-100';
-      case 'deactivated': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'active': 
+        return 'text-green-600 bg-green-100';
+      case 'suspended': 
+        return 'text-yellow-600 bg-yellow-100';
+      case 'deactivated': 
+        return 'text-red-600 bg-red-100';
+      default: 
+        return 'text-gray-600 bg-gray-100';
     }
   };
 
-  const getVerificationStatusColor = (status: string) => {
+  const getVerificationStatusColor = (status: string): string => {
     switch (status) {
-      case 'verified': return 'text-green-600 bg-green-100';
-      case 'pending': return 'text-yellow-600 bg-yellow-100';
-      case 'rejected': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'verified': 
+        return 'text-green-600 bg-green-100';
+      case 'pending': 
+        return 'text-yellow-600 bg-yellow-100';
+      case 'rejected': 
+        return 'text-red-600 bg-red-100';
+      default: 
+        return 'text-gray-600 bg-gray-100';
     }
   };
-
-  // Suppress unused variable warnings for variables that may be used for error handling or future features
-  console.log({ isLoading, error });
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Error loading dashboard</h3>
+          <p className="mt-1 text-sm text-gray-500">{error}</p>
+          <div className="mt-6">
+            <button
+              type="button"
+              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              onClick={() => fetchDashboardData()}
+            >
+              Try again
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -422,6 +444,11 @@ const AdminDashboard: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              {pendingGarages.length === 0 && (
+                <div className="p-6 text-center text-gray-500">
+                  No pending garage verifications
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -512,6 +539,11 @@ const AdminDashboard: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              {users.length === 0 && (
+                <div className="p-6 text-center text-gray-500">
+                  No users found
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -563,10 +595,14 @@ const AdminDashboard: React.FC = () => {
                         <p className="font-medium text-gray-900">{user.name}</p>
                         <p className="text-sm text-gray-500">{user.email} • {user.role}</p>
                       </div>
-                     
                     </div>
                   ))}
                 </div>
+                {users.length === 0 && (
+                  <div className="p-4 text-center text-gray-500">
+                    No recent support requests
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -578,21 +614,15 @@ const AdminDashboard: React.FC = () => {
             <TrackingDashboard />
           </div>
         )}
+
+        {/* Loading state for when fetching data */}
+        {isLoading && activeTab !== 'tracking' && (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-2 text-gray-600">Loading...</span>
+          </div>
+        )}
       </div>
-
-  
-      
-
-      {/* Live Tracking Component */}
-      {trackingOpen && selectedBookingForTracking && (
-        <div className="fixed bottom-4 left-4 z-50">
-          <LiveTrackingMap
-            bookingId={selectedBookingForTracking}
-            isCollapsed={trackingCollapsed}
-            onToggleCollapse={() => setTrackingCollapsed(!trackingCollapsed)}
-          />
-        </div>
-      )}
     </div>
   );
 };
