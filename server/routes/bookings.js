@@ -76,7 +76,7 @@ router.get('/pending', auth, authorize('garage'), async (req, res) => {
     }
 
     // Find all pending bookings within 5km radius
-    const allBookings = await Booking.find({ status: 'pending' })
+     const allBookings = await Booking.find({ $and:[{status:'pending'},{rejectedBy: { $ne: garage.id }}] })
       .populate('customer', 'name phone')
       .sort({ createdAt: -1 });
 
