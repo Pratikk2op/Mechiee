@@ -1,5 +1,5 @@
 import React, { useState, useEffect} from 'react';
-import { User, LogOut, Home, MapPin ,Calculator,Wrench} from 'lucide-react';
+import { User, LogOut, Home,Calculator,Wrench} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { notificationSound } from '../util/notificationSound';
@@ -7,11 +7,13 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 import socket from '../socket';
 import LocationSelector from '../ServiceBooking/SelectLocation';
+
 // Chat removed per requirement
 
 
 const BASE_URI = import.meta.env.VITE_API_URL;
 interface ServiceHistory {
+  mechanic: any;
   _id: string;
   date: string | null;
   type: string;
@@ -274,7 +276,6 @@ const CustomerDashboard: React.FC = () => {
   
       setWaitingForApproval(response.data._id);
       toast.success('Booking submitted! Waiting for garage to accept.');
-      navigate("/dashboard")
       setIsSubmitting(false);
     } catch (err: any) {
       console.error('Booking error:', err);
@@ -464,7 +465,7 @@ const CustomerDashboard: React.FC = () => {
                 <div className="mt-3 flex flex-wrap gap-2 items-center">
                   {/* Phone contact details */}
                   <span className="text-gray-500 text-sm px-3 py-1">
-                    Garage Phone: {user?.role === 'customer' ? (selectedService ? '' : '') : ''}
+                  
                   </span>
                   <a
                     href={upcomingService.location ? `https://www.google.com/maps?q=${upcomingService.location.lat},${upcomingService.location.lon}` : '#'}
@@ -521,8 +522,9 @@ const CustomerDashboard: React.FC = () => {
                   <th className="pb-2 text-left">Type</th>
                   <th className="pb-2 text-left">Bike</th>
                   <th className="pb-2 text-left">Status</th>
-                  <th className="pb-2 text-left">Chat</th>
-                  <th className="pb-2 text-left">Track</th>
+                  <th className="pb-2 text-left">Garage Name</th>
+                  <th className="pb-2 text-left">Mechanic Name</th>
+                  <th className="pb-2 text-left">Mechanic Contact</th>
                 </tr>
               </thead>
               <tbody>
@@ -537,24 +539,19 @@ const CustomerDashboard: React.FC = () => {
                     <td>{entry.bike}</td>
                     <td className={getStatusColor(entry.status)}>{entry.status}</td>
                     <td>
-                      <span className="text-gray-500 text-sm">
-                        Use chat button
+                      <span className="text-gray-200 text-sm">
+                        {entry.garage}
                       </span>
                     </td>
-                    <td>
-                      {['confirmed', 'assigned', 'on-way', 'arrived', 'working'].includes(entry.status) && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedBookingForTracking(entry._id);
-                            setTrackingOpen(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-800 text-sm flex items-center space-x-1"
-                        >
-                          <MapPin className="h-4 w-4" />
-                          <span>Track</span>
-                        </button>
-                      )}
+                     <td>
+                      <span className="text-gray-200 text-sm">
+                        {entry.mechanic.name}
+                      </span>
+                    </td>
+                      <td>
+                      <span className="text-gray-200 text-sm">
+                        {entry?.mechanic.phone}
+                      </span>
                     </td>
                   </tr>
                 ))}
