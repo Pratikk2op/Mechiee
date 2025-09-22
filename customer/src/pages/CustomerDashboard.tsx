@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 import socket from '../socket';
 import LocationSelector from '../ServiceBooking/SelectLocation';
+
 // Chat removed per requirement
 
 
@@ -274,6 +275,7 @@ const CustomerDashboard: React.FC = () => {
   
       setWaitingForApproval(response.data._id);
       toast.success('Booking submitted! Waiting for garage to accept.');
+      navigate("/")
       setIsSubmitting(false);
     } catch (err: any) {
       console.error('Booking error:', err);

@@ -76,10 +76,11 @@ router.get('/pending', auth, authorize('garage'), async (req, res) => {
     }
 
     // Find all pending bookings within 5km radius
-    const allBookings = await Booking.find({ status: 'pending' })
+   
+    const allBookings = await Booking.find({ $and:[{status:'pending'},{rejectedBy: { $ne: garage.id }}] })
       .populate('customer', 'name phone')
       .sort({ createdAt: -1 });
-
+ console.log(allBookings)
     const nearbyPendingBookings = allBookings.filter(booking => {
       if (!booking.lat || !booking.lon) return false;
       const distance = getDistanceFromLatLonInKm(garageLat, garageLon, booking.lat, booking.lon);
@@ -99,29 +100,31 @@ router.get('/pending', auth, authorize('garage'), async (req, res) => {
  */
 router.post('/reject', auth, authorize('garage'), async (req, res) => {
   try {
+   
     const io = req.app.get('io');
     if (!io) return res.status(500).json({ message: 'Socket server error' });
-
+     
     const garage = await Garage.findOne({ userId: req.user.id });
     if (!garage) return res.status(404).json({ message: 'Garage not found' });
 
     const { bookingId, reason } = req.body;
+   
     if (!bookingId) {
       return res.status(400).json({ message: 'Booking ID is required' });
     }
 
-    // Check if booking exists and is still pending
+     // Check if booking exists and is still pending
     const booking = await Booking.findOne({ _id: bookingId, status: 'pending' });
     if (!booking) {
       return res.status(400).json({ message: 'Booking not found or already processed' });
     }
-
-    // Add garage to rejected garages list (optional - for tracking)
+ console.log(booking)
+    // // Add garage to rejected garages list (optional - for tracking)
     await Booking.findByIdAndUpdate(bookingId, {
       $addToSet: { rejectedBy: garage._id }
     });
 
-    // Notify customer about rejection (optional)
+    // // Notify customer about rejection (optional)
     const customerDoc = await Customer.findById(booking.customer);
     if (customerDoc && customerDoc.user) {
       await sendNotificationViaSocket(io, {
@@ -132,7 +135,7 @@ router.post('/reject', auth, authorize('garage'), async (req, res) => {
       });
     }
 
-    // Emit rejection event to all garages in the area
+    // // Emit rejection event to all garages in the area
     io.to('garage').emit('bookingRejected', {
       bookingId: booking._id,
       rejectedBy: garage._id,

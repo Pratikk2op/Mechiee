@@ -292,7 +292,7 @@ const GarageDashboard: React.FC = () => {
 
     const loadNotifications = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/notifications', {
+        const response = await fetch(`${process.env.VITE_API_URL}api/notifications`,{
           credentials: 'include',
         });
         if (response.ok) {
@@ -360,6 +360,7 @@ const GarageDashboard: React.FC = () => {
       }
     }
   };
+
 
   // Handle profile update
   const handleProfileUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -901,7 +902,7 @@ const GarageDashboard: React.FC = () => {
                               );
                               
                               try {
-                                await fetch(`http://localhost:5000/api/notifications/${notification._id}/read`, {
+                                await fetch(`${process.env.VITE_API_URL}/api/notifications/read`, {
                                   method: 'PUT',
                                   credentials: 'include',
                                 });
@@ -927,7 +928,7 @@ const GarageDashboard: React.FC = () => {
                             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
                             
                             try {
-                              await fetch('http://localhost:5000/api/notifications/read-all', {
+                              await fetch(`${process.env.VITE_API_URL}/api/notifications/read-all`, {
                                 method: 'PUT',
                                 credentials: 'include',
                               });
