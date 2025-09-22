@@ -27,7 +27,7 @@ function initSocket(server) {
           'http://localhost:3000', // Admin app
           'http://localhost:3001', // Alternative admin port
           'https://mechiee.netlify.app',
-          'https://mechieeadmin.netlify.app'
+          'https://mechieeadmin.netlify.app',
           'https://mechiee.onrender.com',
           process.env.FRONTEND_URL,
         ].filter(Boolean);
