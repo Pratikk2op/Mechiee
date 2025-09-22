@@ -21,7 +21,11 @@ function initSocket(server) {
       origin: (origin, callback) => {
         const allowedOrigins = [
         echanic app
-          'http://localhost:3000', // Admin app
+          'http://localhost:3000',
+             'http://localhost:5173',
+             'http://localhost:5174',
+             'http://localhost:5175',
+             'http://localhost:5176',// Admin app
           'http://localhost:3001', // Alternative admin port
           'https://mechiee.netlify.app',
           'https://garagemechiee.netlify.app',
