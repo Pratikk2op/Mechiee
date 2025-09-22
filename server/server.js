@@ -79,7 +79,6 @@ app.set('io', io);
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? [process.env.FRONTEND_URL]
   : [
-    
       'https://mechiee.netlify.app',
     'https://mechieeadmin.netlify.app',
       'http://localhost:5173',
@@ -91,7 +90,6 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
      'https://garagemechiee.netlify.app',
     'https://mechanicmechiee.netlify.app',
       'https://mechiee.onrender.com',
-      ''
     ];
 
 const corsOptions = {
