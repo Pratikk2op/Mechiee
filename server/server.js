@@ -87,7 +87,7 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       'http://localhost:5176',
       'http://localhost:3000',
       'http://localhost:3001',
-     'garagemechiee.netlify.app',
+     'https://garagemechiee.netlify.app',
       'https://mechiee.onrender.com',
       ''
     ];
