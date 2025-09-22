@@ -20,7 +20,6 @@ function initSocket(server) {
     cors: {
       origin: (origin, callback) => {
         const allowedOrigins = [
-        echanic app
           'http://localhost:3000',
              'http://localhost:5173',
              'http://localhost:5174',
