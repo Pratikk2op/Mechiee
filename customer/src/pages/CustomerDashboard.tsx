@@ -274,6 +274,7 @@ const CustomerDashboard: React.FC = () => {
   
       setWaitingForApproval(response.data._id);
       toast.success('Booking submitted! Waiting for garage to accept.');
+      navigate("/dashboard")
       setIsSubmitting(false);
     } catch (err: any) {
       console.error('Booking error:', err);
