@@ -20,15 +20,13 @@ function initSocket(server) {
     cors: {
       origin: (origin, callback) => {
         const allowedOrigins = [
-          'http://localhost:5173', // Customer app
-          'http://localhost:5174', // Garage app
-          'http://localhost:5175', // Mechanic app
-          'http://localhost:5176', // Mechanic app
+        echanic app
           'http://localhost:3000', // Admin app
           'http://localhost:3001', // Alternative admin port
           'https://mechiee.netlify.app',
           'https://garagemechiee.netlify.app',
           'https://mechieeadmin.netlify.app',
+             'https://mechanicmechiee.netlify.app',
           'https://mechiee.onrender.com',
           process.env.FRONTEND_URL,
         ].filter(Boolean);
