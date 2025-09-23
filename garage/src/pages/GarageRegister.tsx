@@ -65,7 +65,7 @@ const GarageRegistrationForm = () => {
 
   const submitForm = async (formData: any) => {
     try {
-      const response = await fetch(`${process.env.VITE_API_URL}/api/garage/register`, {
+      const response = await fetch(`https://api.mechiee.in/api/garage/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
