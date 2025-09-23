@@ -26,10 +26,10 @@ function initSocket(server) {
              'http://localhost:5175',
              'http://localhost:5176',// Admin app
           'http://localhost:3001', // Alternative admin port
-          'https://mechiee.netlify.app',
-          'https://garagemechiee.netlify.app',
-          'https://mechieeadmin.netlify.app',
-             'https://mechanicmechiee.netlify.app',
+          'https://mechiee.in',
+          'https://mechanic.mechiee.in',
+          'https://garage.mechiee.in',
+             'https://admin.mechiee.in',
           'https://mechiee.onrender.com',
           process.env.FRONTEND_URL,
         ].filter(Boolean);
