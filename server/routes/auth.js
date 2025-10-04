@@ -133,7 +133,10 @@ res.cookie("token", token, {
 
 router.post('/logout', (req, res) => {
   // For JWT stored in cookie: clear it
-  res.clearCookie('token'); // if you used res.cookie('token', token)
+ res.cookie("token","",{
+   httpOnly:true,
+   expires:new Date(0)
+ })// if you used res.cookie('token', token)
   console.log('Hello')
   res.status(200).json({ message: 'Logged out successfully' });
 });
