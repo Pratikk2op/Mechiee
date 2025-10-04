@@ -133,12 +133,14 @@ res.cookie("token", token, {
 
 router.post('/logout', (req, res) => {
   // For JWT stored in cookie: clear it
- res.cookie("token","",{
-   httpOnly:true,
-   expires:new Date(0)
- })// if you used res.cookie('token', token)
-  console.log('Hello')
-  res.status(200).json({ message: 'Logged out successfully' });
+res.clearCookie("token", {
+  httpOnly: true,
+  secure: true,
+  sameSite: "none",
+  path: "/", // must match
+});
+
+return res.status(200).json({ message: 'Logged out successfully' });
 });
 
 // Forgot Password - Send Reset Email
