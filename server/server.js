@@ -89,7 +89,7 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
           'https://mechanic.mechiee.in',
           'https://garage.mechiee.in',
              'https://admin.mechiee.in',
-          'https://mechiee.onrender.com',
+          'https://api.mechiee.in',
   
     ];
 
