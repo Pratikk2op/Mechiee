@@ -186,8 +186,7 @@ const getGarageId = async (): Promise<void> => {
     credentials: 'include',
   });
   const data = await response.json();
-  console.log(data.garages[0]._id);
-  setGarageId(data.garages[0]._id);
+ setGarageId(data.garage[0]._id);
 };
 useEffect(() => {
   if (user) {
