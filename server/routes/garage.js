@@ -10,27 +10,6 @@ const router = express.Router();
 import { extractLatLngFromMapLinkUniversal } from '../helper/latlongExtract.js';
 import { authorize,auth } from '../middleware/auth.js';
 
-// read all garages
-router.get('/', async (req, res) => {
-  try {
-    const garages = await Garage.find();
-    res.status(200).json({ garages });
-  } catch (err) {
-    console.error("Garage list error:", err);
-    res.status(500).json({ 
-      message: "Internal server error",
-      error: err.message
-    });  
-  }
-});
-
-
-
-
-
-
-
-
 /**
  * Get garage details by ID
  */
@@ -38,7 +17,7 @@ router.get('/',auth,authorize('garage'), async (req, res) => {
   try {
     
 
-    const garage = await Garage.findById({userId:req.user._id});
+    const garage = await Garage.find({userId:req.user._id});
 
 
     if (!garage) {
