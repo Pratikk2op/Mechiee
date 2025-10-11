@@ -21,17 +21,16 @@ function initSocket(server) {
       origin: (origin, callback) => {
         const allowedOrigins = [
           'http://localhost:3000',
-             'http://localhost:5173',
-             'http://localhost:5174',
-             'http://localhost:5175',
-             'http://localhost:5176',// Admin app
-          'http://localhost:3001', // Alternative admin port
-          'https://mechiee.netlify.app',
-          'https://garagemechiee.netlify.app',
-          'https://mechieeadmin.netlify.app',
-             'https://mechanicmechiee.netlify.app',
-          'https://mechiee.onrender.com',
-          process.env.FRONTEND_URL,
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
+    'http://localhost:3001',
+    'https://mechiee.in',
+    'https://mechanic.mechiee.in',
+    'https://garage.mechiee.in',
+    'https://admin.mechiee.in',
+    'https://api.mechiee.in',
         ].filter(Boolean);
 
         console.log(`🔍 Socket.IO CORS check - Origin: ${origin}`);

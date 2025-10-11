@@ -8,6 +8,7 @@ import USP from "../components/USP";
 import Navbar from "../components/Navbar"
 import Footer from "../components/Footer"
 import { useAuth } from '../context/AuthContext';
+import ServiceCard from "../components/ServiceCard"
 import { 
   Wrench, 
   
@@ -112,14 +113,14 @@ const CustomerLanding: React.FC = () => {
               
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
                 <Link
-                   to={user ? "/booking" : "/register"}
+                   to={user ? "/dashboard" : "/register"}
                   className="bg-gradient-to-r from-blue-400 to-green-600 text-white px-8 py-4 rounded-lg font-semibold hover:from-blue-500 hover:to-green-700 transition-all duration-200 transform hover:scale-105 flex items-center justify-center space-x-2"
                 >
                   <Calendar className="h-5 w-5" />
                   <span>Book Now</span>
                 </Link>
                {!user && ( <Link
-                  to="/login/customer"
+                  to="/login"
                   className="border-2 border-blue-400 text-blue-600 dark:text-blue-400 px-8 py-4 rounded-lg font-semibold hover:bg-blue-400 hover:text-white transition-all duration-200 text-center"
                 >
                   Sign In
@@ -223,7 +224,7 @@ const CustomerLanding: React.FC = () => {
       </div>
         </div>
       </section>
-
+<ServiceCard/>
 
       <Brands/>
 

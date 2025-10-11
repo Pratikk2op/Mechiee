@@ -11,18 +11,19 @@ import { extractLatLngFromMapLinkUniversal } from '../helper/latlongExtract.js';
 import { authorize,auth } from '../middleware/auth.js';
 
 // read all garages
-router.get('/', async (req, res) => {
-  try {
-    const garages = await Garage.find();
-    res.status(200).json({ garages });
-  } catch (err) {
-    console.error("Garage list error:", err);
-    res.status(500).json({ 
-      message: "Internal server error",
-      error: err.message
-    });  
-  }
-});
+// router.get('/', async (req, res) => {
+//   try {
+//     const garages = await Garage.find();
+//     res.status(200).json({ garages });
+//     co
+//   } catch (err) {
+//     console.error("Garage list error:", err);
+//     res.status(500).json({ 
+//       message: "Internal server error",
+//       error: err.message
+//     });  
+//   }
+// });
 
 
 
@@ -38,18 +39,19 @@ router.get('/',auth,authorize('garage'), async (req, res) => {
   try {
     
 
-    const garage = await Garage.findById({userId:req.user._id});
+    const garage = await Garage.find({userId:req.user._id});
 
 
-    if (!garage) {
+   if (!garage) {
 
       return res.status(404).json({ message: "Garage not found" });
     }
 
-    res.status(200).json({ 
+   return res.status(200).json({ 
       message: "Garage fetched successfully",
       garage
     });
+
 
   } catch (err) {
     console.error("Garage read error:", err);

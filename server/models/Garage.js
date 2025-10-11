@@ -7,7 +7,7 @@ const GarageSchema = new mongoose.Schema({
     required: true
   },
 
-  garageName: { type: String, required: true },
+  garageName: { type: String },
   registrationNumber: { type: String },
   garageType: { type: String }, // e.g. "Two-Wheeler"
 

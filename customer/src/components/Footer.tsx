@@ -64,9 +64,8 @@ const Footer = () => {
                     <a href="#" className="text-gray-400 hover:text-white transition" aria-label="Twitter">
                       <Twitter className="w-5 h-5" />
                     </a>
-                    <a href="#" className="text-gray-400 hover:text-white transition" aria-label="Instagram">
-                      <Instagram className="w-5 h-5" />
-                    </a>
+                    
+                       <a href="https://www.instagram.com/mechiee_services?utm_source=qr&igsh=b2RidmlyZW9qeTRr" className="text-gray-400 hover:text-white transition" aria-label="Instagram"><Instagram className="w-5 h-5" /></a>
                     <a href="#" className="text-gray-400 hover:text-white transition" aria-label="LinkedIn">
                       <Linkedin className="w-5 h-5" />
                     </a>

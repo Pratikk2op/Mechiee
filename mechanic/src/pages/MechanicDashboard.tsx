@@ -4,9 +4,9 @@ import {
 
   LogOut, 
   Home, 
-  SendHorizonal, 
 
-  MessageSquare, 
+
+
   MapPin, 
   Wrench, 
   Clock, 
@@ -96,20 +96,51 @@ const MechanicDashboard: React.FC = () => {
   // Fetch bookings data with 8-second delay
   const fetchData = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // 8-second delay
+      await new Promise(resolve => setTimeout(resolve, 2000)); 
       const response = await axios.get(`${BASE_URI}/api/bookings/mechanic`, {
         withCredentials: true,
         timeout: 10000,
       });
       const bookingsData = response.data.bookings || [];
       setBookings(bookingsData);
-      setPendingBookings(bookingsData.filter((b: any) => b.status === 'pending'));
+      setPendingBookings(bookingsData.filter((b: any) => b.status === 'assigned'));
       setCompletedJobs(bookingsData.filter((b: any) => b.status === 'completed'));
+      
     } catch (error) {
       console.error('Failed to load bookings:', error);
       toast.error('Failed to load bookings. Please try again.');
     }
   };
+
+ 
+async function handleStatus(id: string) {
+  try {
+    const response = await axios.put(
+      `${BASE_URI}/api/bookings/status`,
+      { id }, // request body
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        withCredentials: true, // ✅ ensures cookies are sent with the request
+      }
+    );
+
+    const data = response.data;
+
+    if (data.success) {
+      toast.success(data.message);
+      window.location.reload()
+    } else {
+      toast.error(data.message || "Update failed!");
+    }
+  } catch (error) {
+    console.error("Status update error:", error);
+    toast.error("Something went wrong!");
+  }
+}
+
+
 
   // Load bookings on mount
   useEffect(() => {
@@ -169,22 +200,8 @@ const MechanicDashboard: React.FC = () => {
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h2>
       
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Jobs</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {bookings.filter(b => ['assigned', 'on-way', 'arrived', 'working'].includes(b.status)).length}
-              </p>
-            </div>
-            <Wrench className="h-8 w-8 text-blue-500" />
-          </div>
-        </motion.div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+       
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -198,7 +215,7 @@ const MechanicDashboard: React.FC = () => {
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {completedJobs.filter(job => {
                   const today = new Date().toDateString();
-                  return new Date(job.completedAt).toDateString() === today;
+                  return new Date(job.updatedAt).toDateString() === today;
                 }).length}
               </p>
             </div>
@@ -206,22 +223,7 @@ const MechanicDashboard: React.FC = () => {
           </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Earnings</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                ₹{completedJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0)}
-              </p>
-            </div>
-            <SendHorizonal className="h-8 w-8 text-yellow-500" />
-          </div>
-        </motion.div>
+       
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -241,44 +243,13 @@ const MechanicDashboard: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* Pending Bookings */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Pending Bookings</h3>
-        <div className="space-y-3">
-          {pendingBookings.length > 0 ? (
-            pendingBookings.map((booking) => (
-              <div
-                key={booking._id}
-                className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                onClick={() => setSelectedBooking(booking)}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      {typeof booking.customerId === 'string' ? 'Unknown Customer' : booking.customerId?.name || 'Unknown Customer'}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{booking.serviceId?.name || booking.serviceType || 'Unknown Service'}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">₹{booking.totalAmount || 0}</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 capitalize">{booking.status}</p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-600 dark:text-gray-400">No pending bookings available.</p>
-          )}
-        </div>
-      </div>
-
+    
       {/* Recent Bookings */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Recent Bookings</h3>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Completed Bookings</h3>
         <div className="space-y-3">
           {bookings.length > 0 ? (
-            bookings.slice(0, 5).map((booking) => (
+            completedJobs.map((booking) => (
               <div
                 key={booking._id}
                 className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
@@ -293,13 +264,13 @@ const MechanicDashboard: React.FC = () => {
                   }`} />
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {typeof booking.customerId === 'string' ? 'Unknown Customer' : booking.customerId?.name || 'Unknown Customer'}
+                      {!booking.customer ? 'Unknown Customer' : booking?.name}
                     </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{booking.serviceId?.name || booking.serviceType || 'Unknown Service'}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{ booking.serviceType || 'Unknown Service'}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">₹{booking.totalAmount || 0}</p>
+                 
                   <p className="text-xs text-gray-600 dark:text-gray-400 capitalize">{booking.status}</p>
                 </div>
               </div>
@@ -333,9 +304,9 @@ const MechanicDashboard: React.FC = () => {
                   <Popup>
                     <div className="p-2">
                       <h3 className="font-semibold text-sm">
-                        {typeof booking.customerId === 'string' ? 'Unknown Customer' : booking.customerId?.name || 'Unknown Customer'}
+                        {!booking.customer ? 'Unknown Customer' : booking?.name || 'Unknown Customer'}
                       </h3>
-                      <p className="text-xs text-gray-600">{booking.serviceId?.name || booking.serviceType || 'Unknown Service'}</p>
+                      <p className="text-xs text-gray-600">{ booking.serviceType || 'Unknown Service'}</p>
                       <p className="text-xs text-gray-600 capitalize">{booking.status}</p>
                     </div>
                   </Popup>
@@ -357,10 +328,10 @@ const MechanicDashboard: React.FC = () => {
 
   const renderBookingsContent = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">My Bookings</h2>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Pending Bookings</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {bookings.length > 0 ? (
-          bookings.map((booking) => (
+        {pendingBookings.length > 0 ? (
+          pendingBookings.map((booking) => (
             <motion.div
               key={booking._id}
               initial={{ opacity: 0, scale: 0.9 }}
@@ -369,7 +340,7 @@ const MechanicDashboard: React.FC = () => {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900 dark:text-white">
-                  {typeof booking.customerId === 'string' ? 'Unknown Customer' : booking.customerId?.name || 'Unknown Customer'}
+                  {!booking.customer ? 'Unknown Customer' : booking?.name}
                 </h3>
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                   booking.status === 'completed' ? 'bg-green-100 text-green-800' :
@@ -384,7 +355,7 @@ const MechanicDashboard: React.FC = () => {
               <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                 <p><strong>Service:</strong> {booking.serviceId?.name || booking.serviceType || 'Unknown Service'}</p>
                 <p><strong>Vehicle:</strong> {booking.brand || 'Unknown'} {booking.model || ''}</p>
-                <p><strong>Amount:</strong> ₹{booking.totalAmount || 0}</p>
+                <p><strong>Vehicle Details:</strong> {booking.bikeNumber || 'Unknown'}</p>
                 <p><strong>Date:</strong> {new Date(booking.scheduledDate || Date.now()).toLocaleDateString()}</p>
               </div>
 
@@ -401,6 +372,18 @@ const MechanicDashboard: React.FC = () => {
                     <span>View Map</span>
                   </button>
                 )}
+
+
+                <button
+                    onClick={() => {
+                      setSelectedBooking(booking);
+                      handleStatus(booking._id)
+                    }}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center space-x-1"
+                  >
+                    
+                    <span>Mark Completed</span>
+                  </button>
                
               </div>
             </motion.div>
@@ -412,53 +395,9 @@ const MechanicDashboard: React.FC = () => {
     </div>
   );
 
-  const renderChatContent = () => (
-    <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg">
-      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Chat with Customers</h3>
-      <p className="text-gray-600 dark:text-gray-400 mb-4">
-        Select a booking to start chatting with the customer.
-      </p>
-      <div className="space-y-2">
-        {bookings.filter(booking => ['assigned', 'completed'].includes(booking.status)).length > 0 ? (
-          bookings.filter(booking => ['assigned', 'completed'].includes(booking.status)).map((booking) => (
-            <button
-              key={booking._id}
-              onClick={() => {
-                setSelectedBooking(booking);
-            
-              }}
-              className="w-full p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {typeof booking.customerId === 'string' ? 'Unknown Customer' : booking.customerId?.name || 'Unknown Customer'}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{booking.serviceId?.name || booking.serviceType || 'Unknown Service'}</p>
-                </div>
-                <MessageSquare size={20} className="text-blue-500" />
-              </div>
-            </button>
-          ))
-        ) : (
-          <p className="text-gray-600 dark:text-gray-400">No bookings available for chat.</p>
-        )}
-      </div>
-    </div>
-  );
+  
 
-  const renderEarningsContent = () => (
-    <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg text-center">
-      <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Earnings Summary</h3>
-      <p className="text-gray-600 dark:text-gray-400 mb-4">
-        Total earnings: ₹{completedJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0)}
-      </p>
-      <p className="text-gray-600 dark:text-gray-400">
-        Detailed earnings report coming soon!
-      </p>
-    </div>
-  );
+  
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -490,9 +429,8 @@ const MechanicDashboard: React.FC = () => {
             <nav className="space-y-2">
               {[
                 { id: 'dashboard', label: 'Dashboard', icon: Home },
-                { id: 'bookings', label: 'My Bookings', icon: Wrench },
-                { id: 'chat', label: 'Chat', icon: MessageSquare },
-                { id: 'earnings', label: 'Earnings', icon: SendHorizonal },
+                { id: 'bookings', label: 'Pending Bookings', icon: Wrench },
+               
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -514,8 +452,7 @@ const MechanicDashboard: React.FC = () => {
           <div className="flex-1">
             {activeTab === 'dashboard' && renderDashboardContent()}
             {activeTab === 'bookings' && renderBookingsContent()}
-            {activeTab === 'chat' && renderChatContent()}
-            {activeTab === 'earnings' && renderEarningsContent()}
+           
           </div>
         </div>
       </div>
@@ -531,7 +468,7 @@ const MechanicDashboard: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl h-96">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                Customer Location - {selectedBooking.customerId?.name || 'Unknown Customer'}
+                Customer Location - {selectedBooking?.name || 'Unknown Customer'}
               </h3>
               <button
                 onClick={() => setMapOpen(false)}

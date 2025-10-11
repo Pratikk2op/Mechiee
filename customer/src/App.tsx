@@ -6,6 +6,7 @@ import CustomerLanding from "./pages/CustomerLanding"
 import { useAuth } from "./context/AuthContext"
 import React from "react";
 
+
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();

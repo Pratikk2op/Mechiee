@@ -23,7 +23,7 @@ type Props = {
   onLocationSelect: (lat: number, lng: number, address: string) => void;
 };
 
-const LocationSelector: React.FC<Props> = ({ onLocationSelect }) => {
+const LocationSelector: React.FC<Props> = ({ onLocationSelect}) => {
   const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<[number, number] | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string>("");

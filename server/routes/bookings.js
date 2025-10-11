@@ -77,10 +77,20 @@ router.get('/pending', auth, authorize('garage'), async (req, res) => {
 
     // Find all pending bookings within 5km radius
    
-    const allBookings = await Booking.find({ $and:[{status:'pending'},{rejectedBy: { $ne: garage.id }}] })
-      .populate('customer', 'name phone')
-      .sort({ createdAt: -1 });
- console.log(allBookings)
+  const allBookings = await Booking.aggregate([
+  {
+    $match: { status:'pending',rejectedBy: { $ne: garage._id } } // filter first
+  },
+  {
+    $addFields: {
+      statusOrder: { $cond: [{ $eq: ["$status", "pending"] }, 0, 1] }
+    }
+  },
+  {
+    $sort: { statusOrder: 1, createdAt: 1 } // pending first, then by createdAt asc
+  }
+]).exec();
+
     const nearbyPendingBookings = allBookings.filter(booking => {
       if (!booking.lat || !booking.lon) return false;
       const distance = getDistanceFromLatLonInKm(garageLat, garageLon, booking.lat, booking.lon);
@@ -313,7 +323,7 @@ router.post('/accept', auth, authorize('garage'), async (req, res) => {
     // Atomically update booking: only accept if still pending
     const booking = await Booking.findOneAndUpdate(
       { _id: bookingId, status: 'pending' },
-      { status: 'accepted', garage: garage._id, mechanic: mechanicId },
+      { status: 'assigned', garage: garage._id, mechanic: mechanicId },
       { new: true }
     );
 
@@ -476,6 +486,103 @@ router.get("/mechanic", auth, async (req, res) => {
  * PUT /:id/status
  * Update booking status & optionally mechanic assignment
  */
+router.put("/cancel/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cancelReason } = req.body; // extract the 'reason' key only
+
+    // Validate input
+    if (!cancelReason) {
+      return res.status(400).json({ success: false, message: "Cancellation reason is required." });
+    }
+
+    const booking = await Booking.findByIdAndUpdate(
+      id,
+      { status: "cancelled", cancelReason: cancelReason },
+      { new: true }
+    );
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found." });
+    }
+
+    return res.json({
+      success: true,
+      message: "Booking cancelled successfully",
+      booking,
+    });
+  } catch (error) {
+    console.error("Error cancelling booking:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while cancelling booking",
+    });
+  }
+});
+
+router.put("/status",auth,async(req,res)=>{
+  try{
+   const {id}=req.body;
+   if(!id){
+    return res.status(401).json({
+      success:false,
+      message:"Id is required!"
+    })
+   }
+
+   const booking=await Booking.findById(id);
+
+   booking.status='completed',
+   await booking.save();
+
+   return res.status(200).json({
+    success:true,
+    message:"Booking is successefully completed."
+   })
+  }
+  catch(error){
+    console.error('Status update error:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+})
+
+
+router.put("/billed",auth,async(req,res)=>{
+  try{
+   const {bookingId}=req.body;
+  
+   if(!bookingId){
+    return res.status(401).json({
+      success:false,
+      message:"Id is required!"
+    })
+   }
+
+   const booking=await Booking.findById(bookingId);
+   if(!booking ){
+    
+
+   return res.status(404).json({
+    success:true,
+    message:"Booking not found!"
+   })
+
+   }
+   booking.status='billed',
+   await booking.save();
+
+   return res.status(200).json({
+    success:true,
+    message:"Booking is successefully completed."
+   })
+  }
+  catch(error){
+    console.error('Status update error:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+})
+
+
 
 router.put('/:id/status', auth, async (req, res) => {
   try {

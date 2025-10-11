@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import axios from "axios";
 import { 
   Receipt, 
-
   Send, 
   Download, 
   Edit, 
   Trash2,
   Plus,
-
   User,
   Phone,
   MapPin,
-  Calendar,
+ 
   Clock
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+
 import toast from 'react-hot-toast';
 
 interface BillItem {
@@ -31,20 +30,31 @@ interface Bill {
   customerId: string;
   customerName: string;
   customerPhone: string;
-  customerAddress: string;
-  garageId: string;
-  garageName: string;
+  customerBikeNumber: string;
+  garage: string;
+
+ 
   items: BillItem[];
   subtotal: number;
   tax: number;
   discount: number;
   total: number;
-  status: 'draft' | 'sent' | 'paid' | 'overdue';
+  status: 'draft' | 'sent' | 'paid' | 'billed';
   dueDate: Date;
   createdAt: Date;
-  updatedAt: Date;
+  
   notes?: string;
   paymentMethod?: 'cash' | 'card' | 'upi' | 'bank_transfer';
+}
+
+interface Booking {
+  _id: string;
+  name: string;
+  mobile: string;
+  bikeNumber: string;
+  address?: string;
+
+  garage:string;
 }
 
 interface BillingComponentProps {
@@ -53,22 +63,25 @@ interface BillingComponentProps {
   onClose?: () => void;
 }
 
+
+
 const BillingComponent: React.FC<BillingComponentProps> = ({ 
   bookingId, 
   isOpen = false, 
   onClose 
 }) => {
-  const { user } = useAuth();
+ 
   const [bills, setBills] = useState<Bill[]>([]);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [booking, setBooking] = useState<Booking | null>(null);
 
   // Form state for creating/editing bills
   const [formData, setFormData] = useState({
     customerName: '',
     customerPhone: '',
-    customerAddress: '',
+    customerBikeNumber: '',
     items: [] as BillItem[],
     notes: '',
     dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
@@ -83,70 +96,45 @@ const BillingComponent: React.FC<BillingComponentProps> = ({
   });
 
   useEffect(() => {
-    if (isOpen) {
-      fetchBills();
+    if (isOpen && bookingId) {
+      fetchBooking();
+     
     }
   }, [isOpen, bookingId]);
 
-  const fetchBills = async () => {
+  useEffect(() => {
+    if (booking) {
+      setFormData(prev => ({
+        ...prev,
+        customerName: booking.name || '',
+        customerPhone: booking.mobile || '',
+        customerBikeNumber: booking.bikeNumber || '',
+      }));
+    }
+  }, [booking]);
+
+  const fetchBooking = async () => {
+    if (!bookingId) {
+      toast.error('No booking ID provided');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Mock data - replace with actual API call
-      const mockBills: Bill[] = [
-        {
-          _id: 'bill_1',
-          bookingId: bookingId || 'booking_1',
-          customerId: 'customer_1',
-          customerName: 'John Doe',
-          customerPhone: '+91 9876543210',
-          customerAddress: '123 Main Street, City, State',
-          garageId: user?.id || 'garage_1',
-          garageName: user?.name || 'ABC Garage',
-          items: [
-            {
-              id: 'item_1',
-              description: 'Engine Oil Change',
-              quantity: 1,
-              rate: 500,
-              amount: 500
-            },
-            {
-              id: 'item_2',
-              description: 'Oil Filter Replacement',
-              quantity: 1,
-              rate: 200,
-              amount: 200
-            },
-            {
-              id: 'item_3',
-              description: 'Labor Charges',
-              quantity: 2,
-              rate: 300,
-              amount: 600
-            }
-          ],
-          subtotal: 1300,
-          tax: 130,
-          discount: 0,
-          total: 1430,
-          status: 'sent',
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          notes: 'Please pay within 7 days',
-          paymentMethod: 'cash'
-        }
-      ];
-
-      setBills(mockBills);
-    } catch (error) {
-      console.error('Error fetching bills:', error);
-      toast.error('Failed to load bills');
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/bill/${bookingId}`,
+        { withCredentials: true }
+      );
+      setBooking(response.data.data);
+    } catch (err: any) {
+      console.error("Error fetching booking:", err);
+      toast.error(err?.response?.data?.message || "Failed to fetch booking");
     } finally {
       setLoading(false);
     }
   };
 
+  
   const calculateTotals = (items: BillItem[]) => {
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
     const tax = subtotal * 0.1; // 10% tax
@@ -210,19 +198,24 @@ const BillingComponent: React.FC<BillingComponentProps> = ({
       return;
     }
 
+    if (!bookingId) {
+      toast.error('No booking ID provided');
+      return;
+    }
+
     setLoading(true);
     try {
       const { subtotal, tax, discount, total } = calculateTotals(formData.items);
 
       const newBill: Bill = {
         _id: Date.now().toString(),
-        bookingId: bookingId || 'booking_1',
-        customerId: 'customer_1',
+        bookingId,
+        customerId: booking?._id || 'customer_1',
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
-        customerAddress: formData.customerAddress,
-        garageId: user?.id || 'garage_1',
-        garageName: user?.name || 'ABC Garage',
+        customerBikeNumber: formData.customerBikeNumber,
+        garage: booking?.garage || 'garage_1',
+        
         items: formData.items,
         subtotal,
         tax,
@@ -231,51 +224,74 @@ const BillingComponent: React.FC<BillingComponentProps> = ({
         status: 'draft',
         dueDate: new Date(formData.dueDate),
         createdAt: new Date(),
-        updatedAt: new Date(),
+        
         notes: formData.notes,
         paymentMethod: formData.paymentMethod
       };
+
+      // Mock API call to create bill
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/bill`,
+        newBill,
+        { withCredentials: true }
+      );
 
       setBills(prev => [...prev, newBill]);
       setIsCreating(false);
       resetForm();
       toast.success('Bill created successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating bill:', error);
-      toast.error('Failed to create bill');
+      toast.error(error?.response?.data?.message || 'Failed to create bill');
     } finally {
       setLoading(false);
     }
   };
 
-  const sendBill = async (billId: string) => {
-    try {
-      // Mock API call to send bill
-      setBills(prev => prev.map(bill => 
-        bill._id === billId ? { ...bill, status: 'sent' } : bill
-      ));
-      toast.success('Bill sent to customer');
-    } catch (error) {
-      console.error('Error sending bill:', error);
-      toast.error('Failed to send bill');
-    }
-  };
+ const sendBill = async (billId: string) => {
+  try {
+    // API call to mark the bill as sent
+    await axios.put(
+      `${import.meta.env.VITE_API_URL}/api/bookings/billed`,
+      { bookingId }, // send billId directly
+      { withCredentials: true }
+    );
+
+    // Update local UI state
+    setBills(prev =>
+      prev.map(bill =>
+        bill._id === billId ? { ...bill, status: 'billed' } : bill
+      )
+    );
+
+    toast.success('Bill sent to customer');
+  } catch (error: any) {
+    console.error('Error sending bill:', error);
+    toast.error(error?.response?.data?.message || 'Failed to send bill');
+  }
+};
+
 
   const deleteBill = async (billId: string) => {
     try {
+      // Mock API call to delete bill
+      await axios.delete(
+        `${import.meta.env.VITE_API_URL}/api/bills/${billId}`,
+        { withCredentials: true }
+      );
       setBills(prev => prev.filter(bill => bill._id !== billId));
       toast.success('Bill deleted successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting bill:', error);
-      toast.error('Failed to delete bill');
+      toast.error(error?.response?.data?.message || 'Failed to delete bill');
     }
   };
 
   const resetForm = () => {
     setFormData({
-      customerName: '',
-      customerPhone: '',
-      customerAddress: '',
+      customerName: booking?.name || '',
+      customerPhone: booking?.mobile || '',
+      customerBikeNumber: booking?.bikeNumber || '',
       items: [],
       notes: '',
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -327,7 +343,7 @@ const BillingComponent: React.FC<BillingComponentProps> = ({
                 <h3 className="text-lg font-semibold text-gray-900">Bills</h3>
                 <button
                   onClick={() => setIsCreating(true)}
-                  className="bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1"
+                  className="bg-yellow-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1"
                 >
                   <Plus className="h-4 w-4" />
                   <span>New Bill</span>
@@ -404,13 +420,12 @@ const BillingComponent: React.FC<BillingComponentProps> = ({
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Address
+                     Bike Number
                     </label>
-                    <textarea
-                      value={formData.customerAddress}
-                      onChange={(e) => setFormData(prev => ({ ...prev, customerAddress: e.target.value }))}
+                    <input
+                      value={formData?.customerBikeNumber}
+                      onChange={(e) => setFormData(prev => ({ ...prev, customerBikeNumber: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                      rows={2}
                       placeholder="Enter customer address"
                     />
                   </div>
@@ -633,17 +648,14 @@ const BillingComponent: React.FC<BillingComponentProps> = ({
                       </div>
                       <div className="flex items-center space-x-2">
                         <MapPin className="h-4 w-4 text-gray-400" />
-                        <span>{selectedBill.customerAddress}</span>
-                      </div>
+                        <span>{selectedBill.customerBikeNumber}</span>
+                      </div>  
                     </div>
                   </div>
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">Bill Information</h4>
                     <div className="space-y-2 text-sm">
-                      <div className="flex items-center space-x-2">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                        <span>Due: {new Date(selectedBill.dueDate).toLocaleDateString()}</span>
-                      </div>
+                      
                       <div className="flex items-center space-x-2">
                         <Clock className="h-4 w-4 text-gray-400" />
                         <span>Created: {new Date(selectedBill.createdAt).toLocaleDateString()}</span>
@@ -751,4 +763,3 @@ const BillingComponent: React.FC<BillingComponentProps> = ({
 };
 
 export default BillingComponent;
-

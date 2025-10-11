@@ -4,6 +4,7 @@ import GarageRegister from "./pages/GarageRegister"
 import GarageLogin from "./pages/GarageLogin"
 import GarageLanding from "./pages/GarageLanding"
 import { useAuth } from "./contexts/AuthContext"
+import {QueryClient,QueryClientProvider} from "@tanstack/react-query"
 import React,{useEffect} from "react";
 
 // Protected Route Component
@@ -23,6 +24,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
   const location = useLocation();
   
+  
   if (user) {
     // Redirect to landing page with user info for dynamic content
     return <Navigate to="/dashboard" state={{ user, from: location.pathname }} replace />;
@@ -33,16 +35,17 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   const { user } = useAuth();
-
+const queryClient=new QueryClient()
   useEffect(()=>{
 if (user) {
     // Redirect to landing page with user info for dynamic content
+
   <Navigate to="/dashboard" state={{ user, from: location.pathname }} replace />;
   }
   },[])
   
   return (
-    <>
+    <QueryClientProvider client={queryClient} >
       <Routes>
         {/* Public routes */}
         <Route 
@@ -83,7 +86,9 @@ if (user) {
         {/* Fallback: Redirect to landing page */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </>
+      
+   
+    </QueryClientProvider>
   )
 }
 

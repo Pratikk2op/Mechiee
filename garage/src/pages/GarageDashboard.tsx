@@ -6,8 +6,8 @@ import { useBooking } from '../contexts/BookingContext';
 import { notificationSound } from '../util/notificationSound';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import  L from 'leaflet';
-import  type { IconOptions } from 'leaflet';
+import L from 'leaflet';
+import type { IconOptions } from 'leaflet';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Socket } from 'socket.io-client';
@@ -34,15 +34,16 @@ interface Service {
 interface Booking {
   _id: string;
   customerId?: Customer;
-  customer: string;
-  customerName: string;
+  customer?: string;
+  name?: string;
+  mobile?: string;
   serviceId?: Service;
-  serviceType: string;
-  status: 'pending' | 'accepted' | 'completed' | 'cancelled' | 'confirmed' | 'in-progress' | 'on-way' | 'arrived' | 'working';
-  scheduledDate: string;
-  scheduledTime: string;
+  serviceType?: string;
+  status: 'pending' | 'accepted' | 'completed' | 'cancelled' | 'confirmed' | 'in-progress' | 'on-way' | 'arrived' | 'working' | 'billed';
+  scheduledDate?: string;
+  scheduledTime?: string;
   totalAmount?: number;
-  createdAt: string;
+  createdAt?: string;
   bikeNumber?: string;
   brand?: string;
   model?: string;
@@ -68,7 +69,7 @@ interface Mechanic {
   name: string;
   email: string;
   userId?: UserId;
-  location: Location;
+  location?: Location;
   phone: string;
   skills?: string[];
   lat?: number;
@@ -90,9 +91,10 @@ interface AuthContextType {
 }
 
 interface BookingContextType {
-  bookingList: Booking[];
+  bookingList: Booking[] | undefined;
   mechanicList: Mechanic[];
   acceptBooking?: (bookingId: string, mechanicId: string) => Promise<void>;
+  rejectBooking?: (bookingId: string) => Promise<void>;
   deleteMechanic?: (mechanicId: string) => Promise<void>;
   pendingBooking?: Booking[];
   reloadData?: () => void;
@@ -118,13 +120,6 @@ interface NotificationResponse {
   createdAt?: string;
 }
 
-// Component prop interfaces
-
-
-
-
-
-
 // Leaflet marker icon configuration
 const markerIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -137,17 +132,31 @@ const markerIcon = new L.Icon({
 
 const GarageDashboard: React.FC = () => {
   const authContext = useAuth() as AuthContextType | undefined;
-  const bookingContext = useBooking() as unknown as BookingContextType | undefined;
+  const bookingContext = useBooking() as BookingContextType | undefined;
   const { user, logout, updateProfile } = authContext || {};
-  const { bookingList = [], mechanicList = [], acceptBooking, deleteMechanic, pendingBooking = [], reloadData, garageId } = bookingContext || { bookingList: [], mechanicList: [], acceptBooking: undefined, deleteMechanic: undefined, pendingBooking: [], reloadData: undefined, garageId: '' as string };
+  const {
+    bookingList = [],
+    mechanicList = [],
+    acceptBooking,
+    rejectBooking,
+    deleteMechanic,
+    pendingBooking = [],
+    reloadData,
+    garageId,
+  } = bookingContext || {};
   const [activeTab, setActiveTab] = useState<string>('pending-orders');
   const [loading, setLoading] = useState<boolean>(true);
   const [expandedMechanicId, setExpandedMechanicId] = useState<string | null>(null);
   const [showMapId, setShowMapId] = useState<string | null>(null);
-  const [profileForm, setProfileForm] = useState<{ name: string; email: string; phone: string }>({ name: '', email: '', phone: '' });
+  const [profileForm, setProfileForm] = useState<{ name: string; email: string; phone: string }>({
+    name: '',
+    email: '',
+    phone: '',
+  });
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [billingOpen, setBillingOpen] = useState(false);
+  const [currentBookingIdForBill, setCurrentBookingIdForBill] = useState<string | null>(null);
   const [trackingOpen, setTrackingOpen] = useState(false);
   const [trackingCollapsed, setTrackingCollapsed] = useState(false);
   const navigate = useNavigate();
@@ -198,11 +207,11 @@ const GarageDashboard: React.FC = () => {
     };
 
     const handleNewBooking = (data: Booking) => {
-      toast.success(`📥 New booking from ${data.customerName}!`, {
+      toast.success(`📥 New booking from ${data.name}!`, {
         position: 'top-right',
         duration: 5000,
       });
-      notifySystem('New Booking', `Booking from ${data.customerName} received.`);
+      notifySystem('New Booking', `Booking from ${data.name} received.`);
       reloadData?.();
     };
 
@@ -225,7 +234,7 @@ const GarageDashboard: React.FC = () => {
     };
 
     const handleNotification = (data: { type: string; message: string; payload?: any; timestamp: Date }) => {
-      setNotifications(prev => [
+      setNotifications((prev) => [
         {
           _id: `${data.type}-${Date.now()}`,
           type: data.type,
@@ -292,12 +301,12 @@ const GarageDashboard: React.FC = () => {
 
     const loadNotifications = async () => {
       try {
-        const response = await fetch(`${process.env.VITE_API_URL}api/notifications`,{
+        const response = await fetch(`${process.env.VITE_API_URL}/api/notifications`, {
           credentials: 'include',
         });
         if (response.ok) {
           const storedNotifications: NotificationResponse[] = await response.json();
-          setNotifications(prev => [
+          setNotifications((prev) => [
             ...storedNotifications.map((n) => ({
               _id: n._id,
               type: n.type,
@@ -326,8 +335,15 @@ const GarageDashboard: React.FC = () => {
       });
       return;
     }
+    if (!acceptBooking) {
+      toast.error('Booking acceptance functionality is unavailable', {
+        position: 'top-right',
+        duration: 5000,
+      });
+      return;
+    }
     try {
-      await acceptBooking?.(bookingId, mechanicId);
+      await acceptBooking(bookingId, mechanicId);
       toast.success('Booking accepted successfully', {
         position: 'top-right',
         duration: 5000,
@@ -342,11 +358,46 @@ const GarageDashboard: React.FC = () => {
     }
   };
 
+  // Handle booking rejection
+  const handleRejectBooking = async (bookingId: string) => {
+    if (!rejectBooking) {
+      toast.error('Booking rejection functionality is unavailable', {
+        position: 'top-right',
+        duration: 5000,
+      });
+      return;
+    }
+    if (window.confirm('Are you sure you want to decline this booking?')) {
+      try {
+        await rejectBooking(bookingId);
+        toast.success('Booking declined successfully', {
+          position: 'top-right',
+          duration: 5000,
+        });
+        notifySystem('Booking Declined', 'Booking has been declined.');
+        reloadData?.();
+      } catch (error: any) {
+        console.error('Error declining booking:', error);
+        toast.error(error.response?.data?.message || 'Failed to decline booking', {
+          position: 'top-right',
+          duration: 5000,
+        });
+      }
+    }
+  };
+
   // Handle mechanic deletion
   const handleDeleteMechanic = async (mechanicId: string) => {
+    if (!deleteMechanic) {
+      toast.error('Mechanic deletion functionality is unavailable', {
+        position: 'top-right',
+        duration: 5000,
+      });
+      return;
+    }
     if (window.confirm('Are you sure you want to delete this mechanic?')) {
       try {
-        await deleteMechanic?.(mechanicId);
+        await deleteMechanic(mechanicId);
         toast.success('Mechanic deleted successfully', {
           position: 'top-right',
           duration: 5000,
@@ -361,7 +412,6 @@ const GarageDashboard: React.FC = () => {
     }
   };
 
-
   // Handle profile update
   const handleProfileUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -372,8 +422,15 @@ const GarageDashboard: React.FC = () => {
       });
       return;
     }
+    if (!updateProfile) {
+      toast.error('Profile update functionality is unavailable', {
+        position: 'top-right',
+        duration: 5000,
+      });
+      return;
+    }
     try {
-      await updateProfile?.({ name: profileForm.name, email: profileForm.email, phone: profileForm.phone });
+      await updateProfile({ name: profileForm.name, email: profileForm.email, phone: profileForm.phone });
       toast.success('Profile updated successfully', {
         position: 'top-right',
         duration: 5000,
@@ -398,6 +455,7 @@ const GarageDashboard: React.FC = () => {
       case 'in-progress':
         return 'text-purple-600 bg-purple-100';
       case 'completed':
+      case 'billed':
         return 'text-green-600 bg-green-100';
       case 'cancelled':
         return 'text-red-600 bg-red-100';
@@ -412,7 +470,7 @@ const GarageDashboard: React.FC = () => {
 
   // Calculate total revenue
   const totalRevenue = bookingList
-    .filter((booking) => booking.status === 'completed')
+    .filter((booking) => booking.status === 'completed' || booking.status === 'billed')
     .reduce((sum, booking) => sum + (booking.totalAmount || 0), 0);
 
   // Render dashboard content
@@ -484,8 +542,10 @@ const GarageDashboard: React.FC = () => {
               className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
             >
               <div className="flex-1">
-                <h4 className="font-medium text-gray-900 dark:text-white">{booking.serviceType || booking.serviceId?.name || 'N/A'}</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Customer: {booking.customerName || booking.customerId?.name || 'N/A'}</p>
+                <h4 className="font-medium text-gray-900 dark:text-white">
+                  {booking.serviceType || booking.serviceId?.name || 'N/A'}
+                </h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Customer: {booking.name || 'N/A'}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-500">
                   {booking.scheduledDate ? new Date(booking.scheduledDate).toLocaleDateString() : 'N/A'} at{' '}
                   {booking.scheduledTime || booking.slot || 'N/A'}
@@ -511,7 +571,7 @@ const GarageDashboard: React.FC = () => {
 
   // Render pending orders content
   const renderPendingOrdersContent = () => (
-    <PendingOrders 
+    <PendingOrders
       onBookingAccepted={() => {
         toast.success('Booking accepted successfully!');
         reloadData?.();
@@ -529,21 +589,21 @@ const GarageDashboard: React.FC = () => {
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Manage Bookings</h2>
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
         <div className="space-y-4">
-          {bookingList.map((booking) => (
+          {bookingList.filter(b=>b.status!="billed").map((booking) => (
             <div key={booking._id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="font-medium text-gray-900 dark:text-white">{booking.serviceType || booking.serviceId?.name || 'N/A'}</h4>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}
-                >
+                <h4 className="font-medium text-gray-900 dark:text-white">
+                  {booking.serviceType || booking.serviceId?.name || 'N/A'}
+                </h4>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
                   {booking.status || 'N/A'}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
                 <div>
                   <p className="text-gray-600 dark:text-gray-400">Customer</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{booking.customerName || booking.customerId?.name || 'N/A'}</p>
-                  <p className="text-gray-500">{booking.customerId?.phone || 'N/A'}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{booking?.name || 'N/A'}</p>
+                  <p className="text-gray-500">{booking?.mobile || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-gray-600 dark:text-gray-400">Bike Details</p>
@@ -577,20 +637,30 @@ const GarageDashboard: React.FC = () => {
                     ))}
                   </select>
                   <button
+                    onClick={() => handleRejectBooking(booking._id)}
                     className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    disabled
                   >
                     Decline
                   </button>
                 </div>
               )}
-              
               {['accepted', 'in-progress', 'on-way', 'arrived', 'working'].includes(booking.status) && (
                 <div className="mt-4">
-                  <RealTimeTracker 
-                    bookingId={booking._id}
-                    isActive={true}
-                  />
+                  <RealTimeTracker bookingId={booking._id} isActive={true} />
+                </div>
+              )}
+              {booking.status === 'completed' && (
+                <div className="flex justify-end mt-4">
+                  <button
+                    onClick={() => {
+                      setCurrentBookingIdForBill(booking._id);
+                      setBillingOpen(true);
+                    }}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
+                  >
+                    <Receipt className="h-4 w-4" />
+                    <span>Generate Bill</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -606,18 +676,10 @@ const GarageDashboard: React.FC = () => {
   // Render mechanics content
   const renderMechanicsContent = () => (
     <div className="p-6 max-w-4xl mx-auto">
-      <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-        {garageId || 'Guest'}
-      </p>
-
-      <h3 className="text-2xl font-bold mb-6 text-center text-green-700 dark:text-green-400">
-        Mechanic Management
-      </h3>
-
+      <p className="text-sm font-bold text-gray-600 dark:text-gray-400">{garageId || 'Guest'}</p>
+      <h3 className="text-2xl font-bold mb-6 text-center text-green-700 dark:text-green-400">Mechanic Management</h3>
       {mechanicList.length === 0 ? (
-        <p className="text-center text-gray-600 dark:text-gray-400">
-          No mechanics found.
-        </p>
+        <p className="text-center text-gray-600 dark:text-gray-400">No mechanics found.</p>
       ) : (
         <div className="space-y-4">
           {mechanicList.map((mechanic) => (
@@ -625,17 +687,13 @@ const GarageDashboard: React.FC = () => {
               key={mechanic._id}
               className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow cursor-pointer"
               onClick={() => {
-                setExpandedMechanicId(
-                  expandedMechanicId === mechanic._id ? null : mechanic._id
-                );
+                setExpandedMechanicId(expandedMechanicId === mechanic._id ? null : mechanic._id);
                 setShowMapId(null);
               }}
             >
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="font-semibold text-green-800 dark:text-green-400">
-                    {mechanic.name || 'N/A'}
-                  </p>
+                  <p className="font-semibold text-green-800 dark:text-green-400">{mechanic.name || 'N/A'}</p>
                   <p className="text-gray-600 dark:text-gray-300 text-sm">
                     Phone: {mechanic.userId?.phone || mechanic.phone || 'N/A'}
                   </p>
@@ -650,26 +708,21 @@ const GarageDashboard: React.FC = () => {
                   Delete
                 </button>
               </div>
-
               {expandedMechanicId === mechanic._id && (
                 <div className="mt-4 text-gray-700 dark:text-gray-300 text-sm space-y-2">
                   <p>Email: {mechanic.userId?.email || mechanic.email || 'N/A'}</p>
                   <p>Skills: {mechanic.skills?.join(', ') || 'N/A'}</p>
-
                   {mechanic.lat && mechanic.lng && (
                     <button
                       onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                         e.stopPropagation();
-                        setShowMapId(
-                          showMapId === mechanic._id ? null : mechanic._id
-                        );
+                        setShowMapId(showMapId === mechanic._id ? null : mechanic._id);
                       }}
                       className="mt-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl shadow transition"
                     >
                       {showMapId === mechanic._id ? 'Hide Map' : 'Track Mechanic'}
                     </button>
                   )}
-
                   {showMapId === mechanic._id && mechanic.lat && mechanic.lng && (
                     <div className="h-64 w-full rounded-xl overflow-hidden mt-4 border border-green-500 dark:border-green-400 shadow">
                       <MapContainer
@@ -682,10 +735,7 @@ const GarageDashboard: React.FC = () => {
                           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                           attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         />
-                        <Marker
-                          position={[mechanic.lat, mechanic.lng]}
-                          icon={markerIcon}
-                        >
+                        <Marker position={[mechanic.lat, mechanic.lng]} icon={markerIcon}>
                           <Popup>Mechanic: {mechanic.name || 'N/A'}</Popup>
                         </Marker>
                       </MapContainer>
@@ -701,36 +751,78 @@ const GarageDashboard: React.FC = () => {
   );
 
   // Render billing content
-  const renderBillingContent = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Billing Management</h2>
-        <button
-          onClick={() => setBillingOpen(true)}
-          className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors flex items-center space-x-2"
-        >
-          <Receipt className="h-5 w-5" />
-          <span>Create New Bill</span>
-        </button>
-      </div>
-      
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
-        <div className="text-center py-12">
-          <Receipt className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Billing Dashboard</h3>
-          <p className="text-gray-500 dark:text-gray-400 mb-6">
-            Create and manage customer bills, track payments, and generate invoices
-          </p>
-          <button
-            onClick={() => setBillingOpen(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors"
+  const renderBillingContent = () => {
+    const billedBookings = bookingList.filter((booking) => booking.status === 'billed');
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Billing Management</h2>
+          <select
+            className="p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+              if (e.target.value) {
+                setCurrentBookingIdForBill(e.target.value);
+                setBillingOpen(true);
+              }
+            }}
           >
-            Open Billing System
-          </button>
+            <option value="">Select Booking to Bill</option>
+            {bookingList
+              .filter((booking) => booking.status === 'completed')
+              .map((booking) => (
+                <option key={booking._id} value={booking._id}>
+                  {booking.serviceType || booking.serviceId?.name || 'N/A'} - {booking.name}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Billed Bookings</h3>
+          <div className="space-y-4">
+            {billedBookings.map((booking) => (
+              <div key={booking._id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-gray-900 dark:text-white">
+                    {booking.serviceType || booking.serviceId?.name || 'N/A'}
+                  </h4>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
+                    {booking.status || 'N/A'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Customer</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{booking?.name || 'N/A'}</p>
+                    <p className="text-gray-500">{booking?.mobile || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Bike Details</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {booking.brand || 'N/A'} {booking.model || 'N/A'} ({booking.bikeNumber || 'N/A'})
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Scheduled</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {booking.scheduledDate ? new Date(booking.scheduledDate).toLocaleDateString() : 'N/A'}
+                    </p>
+                    <p className="text-gray-500">{booking.scheduledTime || booking.slot || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Amount</p>
+                    <p className="font-medium text-gray-900 dark:text-white">₹{booking.totalAmount || 0}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {billedBookings.length === 0 && (
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">No billed bookings found.</p>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Render tracking content
   const renderTrackingContent = () => (
@@ -740,16 +832,13 @@ const GarageDashboard: React.FC = () => {
         <button
           onClick={() => setTrackingOpen(!trackingOpen)}
           className={`px-6 py-2 rounded-lg transition-colors flex items-center space-x-2 ${
-            trackingOpen 
-              ? 'bg-red-600 hover:bg-red-700 text-white' 
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
+            trackingOpen ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
           }`}
         >
           <MapPin className="h-5 w-5" />
           <span>{trackingOpen ? 'Close Tracking' : 'Open Tracking'}</span>
         </button>
       </div>
-      
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
         <div className="text-center py-12">
           <MapPin className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -760,9 +849,7 @@ const GarageDashboard: React.FC = () => {
           <button
             onClick={() => setTrackingOpen(!trackingOpen)}
             className={`px-6 py-2 rounded-lg transition-colors ${
-              trackingOpen 
-                ? 'bg-red-600 hover:bg-red-700 text-white' 
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
+              trackingOpen ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
           >
             {trackingOpen ? 'Close Tracking Map' : 'Open Tracking Map'}
@@ -836,7 +923,7 @@ const GarageDashboard: React.FC = () => {
   if (!user || !authContext || !bookingContext) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-red-500">Error: Context not available</p>
+        <p className="text-red-500">Error: User or context not available</p>
       </div>
     );
   }
@@ -865,20 +952,18 @@ const GarageDashboard: React.FC = () => {
             </div>
             <div className="flex items-center space-x-4">
               <ThemeToggle />
-              
               <div className="relative notification-dropdown">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="relative p-2 text-gray-600 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors"
                 >
                   <Bell className="h-5 w-5" />
-                  {notifications.filter(n => !n.read).length > 0 && (
+                  {notifications.filter((n) => !n.read).length > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {notifications.filter(n => !n.read).length}
+                      {notifications.filter((n) => !n.read).length}
                     </span>
                   )}
                 </button>
-                
                 {showNotifications && (
                   <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-96 overflow-y-auto">
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -892,15 +977,10 @@ const GarageDashboard: React.FC = () => {
                           <div
                             key={notification._id}
                             className={`p-3 rounded-lg mb-2 cursor-pointer transition-colors ${
-                              notification.read 
-                                ? 'bg-gray-50 dark:bg-gray-700' 
-                                : 'bg-green-50 dark:bg-green-900/20'
+                              notification.read ? 'bg-gray-50 dark:bg-gray-700' : 'bg-green-50 dark:bg-green-900/20'
                             }`}
                             onClick={async () => {
-                              setNotifications(prev => 
-                                prev.map(n => n._id === notification._id ? { ...n, read: true } : n)
-                              );
-                              
+                              setNotifications((prev) => prev.map((n) => (n._id === notification._id ? { ...n, read: true } : n)));
                               try {
                                 await fetch(`${process.env.VITE_API_URL}/api/notifications/read`, {
                                   method: 'PUT',
@@ -911,9 +991,7 @@ const GarageDashboard: React.FC = () => {
                               }
                             }}
                           >
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {notification.message}
-                            </p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{notification.message}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                               {new Date(notification.timestamp).toLocaleString()}
                             </p>
@@ -925,8 +1003,7 @@ const GarageDashboard: React.FC = () => {
                       <div className="p-2 border-t border-gray-200 dark:border-gray-700">
                         <button
                           onClick={async () => {
-                            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                            
+                            setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
                             try {
                               await fetch(`${process.env.VITE_API_URL}/api/notifications/read-all`, {
                                 method: 'PUT',
@@ -945,7 +1022,6 @@ const GarageDashboard: React.FC = () => {
                   </div>
                 )}
               </div>
-              
               <button
                 onClick={() => {
                   logout?.();
@@ -1017,11 +1093,16 @@ const GarageDashboard: React.FC = () => {
         </div>
       </div>
 
-      <BillingComponent
-        bookingId={undefined}
-        isOpen={billingOpen}
-        onClose={() => setBillingOpen(false)}
-      />
+      {billingOpen && currentBookingIdForBill && (
+        <BillingComponent
+          bookingId={currentBookingIdForBill}
+          isOpen={billingOpen}
+          onClose={() => {
+            setBillingOpen(false);
+            setCurrentBookingIdForBill(null);
+          }}
+        />
+      )}
 
       {trackingOpen && (
         <div className="fixed bottom-4 left-4 z-50">
