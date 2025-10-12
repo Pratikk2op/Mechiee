@@ -76,7 +76,6 @@ router.get('/pending', auth, authorize('garage'), async (req, res) => {
     }
 
     // Find all pending bookings within 5km radius
-<<<<<<< HEAD
    
   const allBookings = await Booking.aggregate([
   {
@@ -92,17 +91,6 @@ router.get('/pending', auth, authorize('garage'), async (req, res) => {
   }
 ]).exec();
 
-=======
-<<<<<<< HEAD
-     const allBookings = await Booking.find({ $and:[{status:'pending'},{rejectedBy: { $ne: garage.id }}] })
-=======
-   
-    const allBookings = await Booking.find({ $and:[{status:'pending'},{rejectedBy: { $ne: garage.id }}] })
->>>>>>> d5608be (Minor bug fixes)
-      .populate('customer', 'name phone')
-      .sort({ createdAt: -1 });
- console.log(allBookings)
->>>>>>> 4dbfe8c0ffb5ec10346a9f4f5e1df61e54f9d5d5
     const nearbyPendingBookings = allBookings.filter(booking => {
       if (!booking.lat || !booking.lon) return false;
       const distance = getDistanceFromLatLonInKm(garageLat, garageLon, booking.lat, booking.lon);

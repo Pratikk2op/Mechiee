@@ -315,8 +315,4 @@ export async function testExtraction(url) {
   console.log("FINAL RESULT:", result);
   console.log("=".repeat(60) + "\n");
   return result;
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 4dbfe8c0ffb5ec10346a9f4f5e1df61e54f9d5d5
