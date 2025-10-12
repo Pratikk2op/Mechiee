@@ -53,8 +53,8 @@ const Footer = () => {
                   </div>
                   <div className="flex items-start space-x-3">
                     <Mail className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                    <a href="mailto:mechieeservices@gmail.com" className="hover:text-green-400 transition break-all">
-                      mechieeservices@gmail.com
+                    <a href="mailto:mechiee.info@mechiee.in" className="hover:text-green-400 transition break-all">
+                      mechiee.info@mechiee.in
                     </a>
                   </div>
                   <div className="flex space-x-4 pt-2">
@@ -64,8 +64,14 @@ const Footer = () => {
                     <a href="#" className="text-gray-400 hover:text-white transition" aria-label="Twitter">
                       <Twitter className="w-5 h-5" />
                     </a>
+<<<<<<< HEAD
                     
                        <a href="https://www.instagram.com/mechiee_services?utm_source=qr&igsh=b2RidmlyZW9qeTRr" className="text-gray-400 hover:text-white transition" aria-label="Instagram"><Instagram className="w-5 h-5" /></a>
+=======
+                    <a href="https://www.instagram.com/mechiee.in?igsh=MXE0Z21mZ2tudG81cw==" className="text-gray-400 hover:text-white transition" aria-label="Instagram">
+                      <Instagram className="w-5 h-5" />
+                    </a>
+>>>>>>> 4dbfe8c0ffb5ec10346a9f4f5e1df61e54f9d5d5
                     <a href="#" className="text-gray-400 hover:text-white transition" aria-label="LinkedIn">
                       <Linkedin className="w-5 h-5" />
                     </a>

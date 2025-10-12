@@ -19,6 +19,23 @@ function initSocket(server) {
   io = new Server(server, {
     cors: {
       origin: (origin, callback) => {
+<<<<<<< HEAD
+       const allowedOrigins = (
+  process.env.ALLOWED_ORIGINS?.split(',') || [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
+    'http://localhost:3001',
+    'https://mechiee.in',
+    'https://mechanic.mechiee.in',
+    'https://garage.mechiee.in',
+    'https://admin.mechiee.in',
+    'https://api.mechiee.in', // ✅ add your API domain here
+  ]
+).map(origin => origin.trim());
+=======
         const allowedOrigins = [
           'http://localhost:3000',
     'http://localhost:5173',
@@ -32,6 +49,7 @@ function initSocket(server) {
     'https://admin.mechiee.in',
     'https://api.mechiee.in',
         ].filter(Boolean);
+>>>>>>> d5608be (Minor bug fixes)
 
         console.log(`🔍 Socket.IO CORS check - Origin: ${origin}`);
         if (!origin || allowedOrigins.includes(origin)) {

@@ -10,6 +10,7 @@ const router = express.Router();
 import { extractLatLngFromMapLinkUniversal } from '../helper/latlongExtract.js';
 import { authorize,auth } from '../middleware/auth.js';
 
+<<<<<<< HEAD
 // read all garages
 // router.get('/', async (req, res) => {
 //   try {
@@ -32,6 +33,8 @@ import { authorize,auth } from '../middleware/auth.js';
 
 
 
+=======
+>>>>>>> 4dbfe8c0ffb5ec10346a9f4f5e1df61e54f9d5d5
 /**
  * Get garage details by ID
  */

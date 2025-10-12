@@ -111,6 +111,10 @@ router.get('/me', auth, authorize('customer'), async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 4dbfe8c0ffb5ec10346a9f4f5e1df61e54f9d5d5
 // Create customer if none exists
 router.post('/me', auth, authorize('customer'), async (req, res) => {
   try {
@@ -129,6 +133,11 @@ router.post('/me', auth, authorize('customer'), async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
+=======
+// Get customer profile, bikes, and service history
+
+>>>>>>> 4dbfe8c0ffb5ec10346a9f4f5e1df61e54f9d5d5
 
 // Update customer profile (savedAddresses only)
 router.put('/me', auth, authorize('customer'), async (req, res) => {

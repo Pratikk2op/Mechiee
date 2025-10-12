@@ -91,8 +91,8 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
     'https://garage.mechiee.in',
     'https://admin.mechiee.in',
     'https://api.mechiee.in',
-    ];
 
+  ]
 const corsOptions = {
   origin: function(origin, callback) {
     // Allow requests with no origin (like Postman or server-to-server)
@@ -172,7 +172,8 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-// app.use('*', (req, res) => {
+// app.use('*', (req, res) => 
+
 //   res.status(404).json({
 //     success: false,
 //     message: 'Route not found'
