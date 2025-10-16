@@ -64,14 +64,10 @@ const Footer = () => {
                     <a href="#" className="text-gray-400 hover:text-white transition" aria-label="Twitter">
                       <Twitter className="w-5 h-5" />
                     </a>
-<<<<<<< HEAD
-                    
-                       <a href="https://www.instagram.com/mechiee_services?utm_source=qr&igsh=b2RidmlyZW9qeTRr" className="text-gray-400 hover:text-white transition" aria-label="Instagram"><Instagram className="w-5 h-5" /></a>
-=======
                     <a href="https://www.instagram.com/mechiee.in?igsh=MXE0Z21mZ2tudG81cw==" className="text-gray-400 hover:text-white transition" aria-label="Instagram">
                       <Instagram className="w-5 h-5" />
                     </a>
->>>>>>> 4dbfe8c0ffb5ec10346a9f4f5e1df61e54f9d5d5
+
                     <a href="#" className="text-gray-400 hover:text-white transition" aria-label="LinkedIn">
                       <Linkedin className="w-5 h-5" />
                     </a>

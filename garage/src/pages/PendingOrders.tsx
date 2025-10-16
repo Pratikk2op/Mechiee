@@ -1,4 +1,3 @@
-// PendingOrders.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -18,7 +17,8 @@ import toast from "react-hot-toast";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import previewSound from "../assets/preview.mp3";
+
+const NOTIFICATION_SOUND_URL = "https://res.cloudinary.com/dfurgmper/video/upload/v1760236795/new-notification-026-380249_ahpkme.mp3";
 
 // ----- Types -----
 interface PendingBooking {
@@ -88,6 +88,9 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
       return;
     }
 
+
+    
+
     try {
       const bodyParts: string[] = [];
       bodyParts.push(`Customer: ${booking?.name ?? booking.name ?? "Unknown"}`);
@@ -97,6 +100,9 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
       if (booking.mobile || booking.mobile) {
         bodyParts.push(`Phone: ${booking.mobile}`);
       }
+
+
+
 
       console.log("Creating notification with body:", bodyParts.join(" | "));
 
@@ -111,6 +117,8 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
         data: { bookingId: booking._id },
        
       });
+
+
 
       notification.onclick = (ev) => {
         ev.preventDefault();
@@ -145,7 +153,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
     
     try {
       if (!htmlAudioRef.current) {
-        htmlAudioRef.current = new Audio(previewSound);
+        htmlAudioRef.current = new Audio(NOTIFICATION_SOUND_URL);
         htmlAudioRef.current.volume = 1.0;
       }
       htmlAudioRef.current.currentTime = 0;
@@ -203,7 +211,7 @@ const PendingOrders: React.FC<PendingOrdersProps> = ({
 
   // --- Preload audio ----
   useEffect(() => {
-    const audio = new Audio(previewSound);
+    const audio = new Audio(NOTIFICATION_SOUND_URL);
     audio.preload = "auto";
     audio.volume = 1.0;
     htmlAudioRef.current = audio;

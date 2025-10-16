@@ -20,7 +20,7 @@ const bookingSchema = new mongoose.Schema({
   model: { type: String, required: true },
   serviceType: { type: String, required: true },
   
-  slot: { type: String, required: true },
+  slot: { type: String },
   bikeNumber: { type: String, required: true },
   address: { type: String, required: true },
   description: { type: String },

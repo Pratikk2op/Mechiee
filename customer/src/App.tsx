@@ -5,12 +5,14 @@ import CustomerLogin from "./pages/CustomerLogin"
 import CustomerLanding from "./pages/CustomerLanding"
 import { useAuth } from "./context/AuthContext"
 import React from "react";
+import {QueryClient,QueryClientProvider} from "@tanstack/react-query"
+
 
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
-  
+
   if (!user) {
     // Redirect to login if not authenticated, preserving the intended destination
     return <Navigate to="/login" state={{ from: window.location.pathname }} replace />;
@@ -33,10 +35,11 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 function App() {
-
+  const queryClient=new QueryClient()
   
   return (
     <>
+     <QueryClientProvider client={queryClient} >
       <Routes>
         {/* Public routes */}
         <Route 
@@ -77,6 +80,7 @@ function App() {
         {/* Fallback: Redirect to landing page */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </QueryClientProvider>
     </>
   )
 }

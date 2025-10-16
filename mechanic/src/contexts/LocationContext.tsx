@@ -35,7 +35,7 @@ interface LocationContextType {
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 
 export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -126,9 +126,7 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
           setCurrentLocation(newLocation);
 
           // If user is a mechanic, broadcast location
-          if (user?.role === 'mechanic') {
-            broadcastMechanicLocation(newLocation);
-          }
+      
         },
         (error) => {
           console.error('Location tracking error:', error);
@@ -152,27 +150,7 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
     setIsTracking(false);
   };
 
-  const broadcastMechanicLocation = async (location: Location) => {
-    if (!user || user.role !== 'mechanic') return;
-
-    try {
-      const token = localStorage.getItem('mechiee_token');
-      await fetch(`${API_BASE_URL}/location/update`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          mechanicId: user.id,
-          location,
-          timestamp: new Date()
-        })
-      });
-    } catch (error) {
-      console.error('Error broadcasting location:', error);
-    }
-  };
+ 
 
   const updateMechanicLocation = (mechanicId: string, location: Location, bookingId: string, status: string) => {
     setMechanicLocations(prev => {

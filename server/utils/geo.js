@@ -10,3 +10,18 @@ export function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
     return R * c;
   }
   
+
+  import axios from "axios";
+  
+  export async function getAddressFromCoordinates(lat, lng) {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`;
+  
+    try {
+      const response = await axios.get(url);
+      return response.data.display_name || "Address not found";
+    } catch (error) {
+      console.error("Error fetching address:", error.message);
+      return "Error fetching address";
+    }
+  }
+  

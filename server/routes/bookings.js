@@ -9,6 +9,7 @@ import { getDistanceFromLatLonInKm } from '../utils/geo.js';
 // Import will be handled dynamically to avoid circular dependency
 import { ChatSession } from '../models/Chat.js';
 import mongoose from 'mongoose';
+import {getAddressFromCoordinates} from "../utils/geo.js"
 
 const router = express.Router();
 
@@ -178,7 +179,7 @@ router.post('/book', auth, authorize('customer'), async (req, res) => {
     } = req.body;
 
     // Validate required inputs
-    if (!address || !bikeNumber || !brand || !mobile || !model || !name || !serviceType || !slot || lat == null || lon == null) {
+    if (!address || !bikeNumber || !brand || !mobile || !model || !name || !serviceType || lat == null || lon == null) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
@@ -198,7 +199,7 @@ router.post('/book', auth, authorize('customer'), async (req, res) => {
     // Get the customer document
     const customer = await Customer.findOne({ user: req.user.id });
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
-
+    const street=await getAddressFromCoordinates(lat,lon)
     // Create booking with notifiedGarages list
     const booking = await Booking.create({
       customer: customer._id,
@@ -209,7 +210,7 @@ router.post('/book', auth, authorize('customer'), async (req, res) => {
       serviceType,
       slot,
       bikeNumber,
-      address,
+      address:street,
       description,
       date,
       lat,
@@ -679,6 +680,7 @@ router.put('/:id/rating', auth, authorize('customer'), async (req, res) => {
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }
+
 
     if (booking.status !== 'completed') {
       return res.status(400).json({ message: 'Can only rate completed bookings' });

@@ -91,6 +91,8 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
     'https://garage.mechiee.in',
     'https://admin.mechiee.in',
     'https://api.mechiee.in',
+    "https://nominatim.openstreetmap.org/*",
+     process.env.FRONTEND_URL
 
   ]
 const corsOptions = {

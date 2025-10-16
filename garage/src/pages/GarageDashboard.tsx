@@ -301,11 +301,9 @@ const GarageDashboard: React.FC = () => {
 
     const loadNotifications = async () => {
       try {
-<<<<<<< HEAD
-        const response = await fetch(`${process.env.VITE_API_URL}/api/notifications`, {
-=======
+
         const response = await fetch(`${process.env.VITE_API_URL}api/notifications`,{
->>>>>>> 4dbfe8c0ffb5ec10346a9f4f5e1df61e54f9d5d5
+
           credentials: 'include',
         });
         if (response.ok) {

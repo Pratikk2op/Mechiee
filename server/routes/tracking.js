@@ -1,5 +1,5 @@
 import express from 'express';
-import { auth } from '../middleware/auth.js';
+import { auth,authorize } from '../middleware/auth.js';
 import User from '../models/User.js';
 import Booking from '../models/Booking.js';
 import TrackingSession from '../models/TrackingSession.js';
@@ -66,6 +66,10 @@ router.put('/location', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+
+
+
 
 // Get booking location data
 router.get('/booking/:bookingId', auth, async (req, res) => {
@@ -296,6 +300,9 @@ router.post('/start/:bookingId', auth, async (req, res) => {
   }
 });
 
+
+
+
 // Stop tracking session
 router.post('/stop/:bookingId', auth, async (req, res) => {
   try {
@@ -423,5 +430,113 @@ async function hasActiveBookingWithCustomer(mechanicId, customerId) {
   });
   return !!booking;
 }
+
+
+// In your routes/bookings.js or a dedicated tracking route file
+
+
+
+
+
+
+// PUT /api/bookings/update-tracking
+// Updates mechanic's location in the booking's trackingData.mechanicLocation
+// Can auto-detect active booking or use provided bookingId
+router.get('/update-tracking', auth,authorize('mechanic'), async (req, res) => {
+   try {
+    const { latitude, longitude, bookingId } = req.body;
+    console.log(req.body)
+    const mechanicId = req.user.id; // From auth middleware (mechanic's ObjectId)
+ 
+    // Validate coordinates
+    if (
+      typeof latitude !== 'number' ||
+      latitude < -90 ||
+      latitude > 90 ||
+      typeof longitude !== 'number' ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.',
+      });
+    }
+
+    // Find the booking: either by provided bookingId or auto-detect active one for this mechanic
+    let query = {
+      mechanic: mechanicId,
+      status: { $in: ['assigned'] }, // Only for active/on-going bookings
+    };
+    if (bookingId) {
+      query._id = bookingId;
+    }
+
+    const booking = await Booking.findOne(query);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: bookingId
+          ? 'Booking not found or not accessible.'
+          : 'No active booking found for this mechanic.',
+      });
+    }
+
+    // Ensure trackingData exists
+    if (!booking.trackingData) {
+      booking.trackingData = {};
+    }
+
+    // Update mechanicLocation
+    booking.trackingData.mechanicLocation = {
+      latitude,
+      longitude,
+    };
+
+    // Optional: Add a status update to the updates array (e.g., 'location_updated')
+    booking.trackingData.updates = booking.trackingData.updates || [];
+    booking.trackingData.updates.push({
+      status: 'location_updated',
+      timestamp: new Date(),
+    });
+
+    // Optional: Set startTime if not set (when tracking begins)
+    if (!booking.trackingData.startTime) {
+      booking.trackingData.startTime = new Date();
+    }
+
+    await booking.save();
+
+    // Optional: Emit real-time update via Socket.IO to notify customer
+    // Assuming you have Socket.IO server attached to req.io or global io
+    if (req.io) {
+      req.io.to(`customer:${booking.customer}`).emit('mechanicLocationUpdate', {
+        bookingId: booking._id,
+        location: { latitude, longitude },
+        timestamp: new Date(),
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Mechanic location updated successfully.',
+      data: {
+        bookingId: booking._id,
+        location: { latitude, longitude },
+      },
+    });
+  } catch (error) {
+    console.error('Update tracking error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating location.',
+    });
+  }
+});
+
+
+
+
 
 export default router;

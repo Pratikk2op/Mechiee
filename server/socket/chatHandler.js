@@ -31,6 +31,7 @@ function initSocket(server) {
     'https://garage.mechiee.in',
     'https://admin.mechiee.in',
     'https://api.mechiee.in',
+    process.env.FRONTEND_URL
         ].filter(Boolean);
 
         console.log(`🔍 Socket.IO CORS check - Origin: ${origin}`);
