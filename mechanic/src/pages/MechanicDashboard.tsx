@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   LogOut, 
@@ -145,9 +145,9 @@ const MechanicDashboard: React.FC = () => {
   const [mapOpen, setMapOpen] = useState(false);
   const [completedJobs, setCompletedJobs] = useState<Booking[]>([]);
   const navigate = useNavigate();
-  const [trackingBookings, setTrackingBookings] = useState<Set<string>>(new Set());
-  const trackingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const locationWatchId = useRef<number | null>(null);
+  // const [trackingBookings, setTrackingBookings] = useState<Set<string>>(new Set());
+  // const trackingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // const locationWatchId = useRef<number | null>(null);
 
   // Fetch addresses for bookings
   const fetchAddresses = async (bookingsList: Booking[]): Promise<Booking[]> => {
@@ -215,101 +215,101 @@ const MechanicDashboard: React.FC = () => {
   };
 
   // Update location function
-  const updateLocation = async (position: GeolocationPosition) => {
-    if (trackingBookings.size === 0) {
-      console.log('No bookings to track, skipping location update');
-      return;
-    }
+  // const updateLocation = async (position: GeolocationPosition) => {
+  //   if (trackingBookings.size === 0) {
+  //     console.log('No bookings to track, skipping location update');
+  //     return;
+  //   }
 
-    const { latitude, longitude } = position.coords;
-    try {
-      const promises = Array.from(trackingBookings).map(async (bookingId) => {
-        if (!bookingId || typeof bookingId !== 'string') {
-          console.warn(`Invalid booking ID: ${bookingId}`);
-          return;
-        }
-        try {
-          console.log(`Updating location for booking: ${bookingId}`);
-          const response = await axios.put(
-            `${BASE_URI}/api/tracking/update-tracking`,
-            { latitude, longitude, bookingId },
-            { withCredentials: true }
-          );
-          console.log(`Location updated successfully for booking ${bookingId}:`, response.data);
-        } catch (error) {
-          console.error(`Failed to update location for booking ${bookingId}:`, error);
-          toast.error(`Failed to update location for booking ${bookingId}`);
-        }
-      });
-      await Promise.all(promises);
-    } catch (error) {
-      console.error('Unexpected error during location updates:', error);
-      toast.error('An unexpected error occurred while updating locations');
-    }
-  };
+  //   const { latitude, longitude } = position.coords;
+  //   try {
+  //     const promises = Array.from(trackingBookings).map(async (bookingId) => {
+  //       if (!bookingId || typeof bookingId !== 'string') {
+  //         console.warn(`Invalid booking ID: ${bookingId}`);
+  //         return;
+  //       }
+  //       try {
+  //         console.log(`Updating location for booking: ${bookingId}`);
+  //         const response = await axios.put(
+  //           `${BASE_URI}/api/tracking/update-tracking`,
+  //           { latitude, longitude, bookingId },
+  //           { withCredentials: true }
+  //         );
+  //         console.log(`Location updated successfully for booking ${bookingId}:`, response.data);
+  //       } catch (error) {
+  //         console.error(`Failed to update location for booking ${bookingId}:`, error);
+  //         toast.error(`Failed to update location for booking ${bookingId}`);
+  //       }
+  //     });
+  //     await Promise.all(promises);
+  //   } catch (error) {
+  //     console.error('Unexpected error during location updates:', error);
+  //     toast.error('An unexpected error occurred while updating locations');
+  //   }
+  // };
 
   // Start/stop tracking for a specific booking
-  const toggleTracking = (bookingId: string) => {
-    if (!bookingId || typeof bookingId !== 'string') {
-      console.warn('Invalid booking ID provided to toggleTracking:', bookingId);
-      toast.error('Invalid booking ID');
-      return;
-    }
+  // const toggleTracking = (bookingId: string) => {
+  //   if (!bookingId || typeof bookingId !== 'string') {
+  //     console.warn('Invalid booking ID provided to toggleTracking:', bookingId);
+  //     toast.error('Invalid booking ID');
+  //     return;
+  //   }
 
-    const isCurrentlyTracking = trackingBookings.has(bookingId);
-    const newTracking = new Set(trackingBookings);
+  //   const isCurrentlyTracking = trackingBookings.has(bookingId);
+  //   const newTracking = new Set(trackingBookings);
 
-    if (isCurrentlyTracking) {
-      newTracking.delete(bookingId);
-      toast.success('Tracking stopped for this booking');
-    } else {
-      newTracking.add(bookingId);
-      toast.success('Tracking started for this booking');
-    }
+  //   if (isCurrentlyTracking) {
+  //     newTracking.delete(bookingId);
+  //     toast.success('Tracking stopped for this booking');
+  //   } else {
+  //     newTracking.add(bookingId);
+  //     toast.success('Tracking started for this booking');
+  //   }
 
-    setTrackingBookings(newTracking);
+  //   setTrackingBookings(newTracking);
 
-    if (newTracking.size === 0) {
-      if (trackingIntervalRef.current) {
-        clearInterval(trackingIntervalRef.current);
-        trackingIntervalRef.current = null;
-        console.log('Cleared tracking interval');
-      }
-      if (locationWatchId.current) {
-        navigator.geolocation.clearWatch(locationWatchId.current);
-        locationWatchId.current = null;
-        console.log('Geolocation watch cleared');
-      }
-    } else if (!locationWatchId.current && 'geolocation' in navigator) {
-      console.log('Starting geolocation watch with high accuracy');
-      locationWatchId.current = navigator.geolocation.watchPosition(
-        updateLocation,
-        (error) => {
-          console.error('Geolocation error:', error);
-          let errorMessage = 'Location access denied or unavailable';
-          if (error.code === error.TIMEOUT) {
-            errorMessage = 'Location request timed out. Please ensure GPS is enabled or try moving to an open area.';
-          } else if (error.code === error.PERMISSION_DENIED) {
-            errorMessage = 'Location access denied. Please enable location permissions in your browser.';
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            errorMessage = 'Location data unavailable. Please check your device settings or GPS signal.';
-          }
-          toast.error(errorMessage);
-          setTrackingBookings(new Set());
-          if (locationWatchId.current) {
-            navigator.geolocation.clearWatch(locationWatchId.current);
-            locationWatchId.current = null;
-            console.log('Geolocation watch cleared due to error');
-          }
-        },
-        { enableHighAccuracy: true, timeout: 30000, maximumAge: 120000 }
-      );
-      console.log('Geolocation watch started with ID:', locationWatchId.current);
-    } else if (!navigator.geolocation) {
-      toast.error('Geolocation is not supported by this browser');
-      setTrackingBookings(new Set());
-    }
-  };
+  //   if (newTracking.size === 0) {
+  //     if (trackingIntervalRef.current) {
+  //       clearInterval(trackingIntervalRef.current);
+  //       trackingIntervalRef.current = null;
+  //       console.log('Cleared tracking interval');
+  //     }
+  //     if (locationWatchId.current) {
+  //       navigator.geolocation.clearWatch(locationWatchId.current);
+  //       locationWatchId.current = null;
+  //       console.log('Geolocation watch cleared');
+  //     }
+  //   } else if (!locationWatchId.current && 'geolocation' in navigator) {
+  //     console.log('Starting geolocation watch with high accuracy');
+  //     locationWatchId.current = navigator.geolocation.watchPosition(
+  //       updateLocation,
+  //       (error) => {
+  //         console.error('Geolocation error:', error);
+  //         let errorMessage = 'Location access denied or unavailable';
+  //         if (error.code === error.TIMEOUT) {
+  //           errorMessage = 'Location request timed out. Please ensure GPS is enabled or try moving to an open area.';
+  //         } else if (error.code === error.PERMISSION_DENIED) {
+  //           errorMessage = 'Location access denied. Please enable location permissions in your browser.';
+  //         } else if (error.code === error.POSITION_UNAVAILABLE) {
+  //           errorMessage = 'Location data unavailable. Please check your device settings or GPS signal.';
+  //         }
+  //         toast.error(errorMessage);
+  //         setTrackingBookings(new Set());
+  //         if (locationWatchId.current) {
+  //           navigator.geolocation.clearWatch(locationWatchId.current);
+  //           locationWatchId.current = null;
+  //           console.log('Geolocation watch cleared due to error');
+  //         }
+  //       },
+  //       { enableHighAccuracy: true, timeout: 30000, maximumAge: 120000 }
+  //     );
+  //     console.log('Geolocation watch started with ID:', locationWatchId.current);
+  //   } else if (!navigator.geolocation) {
+  //     toast.error('Geolocation is not supported by this browser');
+  //     setTrackingBookings(new Set());
+  //   }
+  // };
 
   // Load bookings on mount and when activeTab changes
   useEffect(() => {
@@ -514,9 +514,9 @@ const MechanicDashboard: React.FC = () => {
                   <span>Mark Completed</span>
                 </button>
 
-                <button
+                {/* <button
                   onClick={() => toggleTracking(booking._id)}
-                  className={`w-full sm:flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center space-x-1 ${
+                  className={`w-full  sm:flex-1 px-3 py-2 rounded-lg  text-sm font-medium transition-colors flex items-center justify-center space-x-1 ${
                     trackingBookings.has(booking._id)
                       ? 'bg-red-600 hover:bg-red-700 text-white'
                       : 'bg-purple-600 hover:bg-purple-700 text-white'
@@ -524,7 +524,7 @@ const MechanicDashboard: React.FC = () => {
                 >
                   <MapPin size={16} />
                   <span>{trackingBookings.has(booking._id) ? 'Stop Track' : 'Track'}</span>
-                </button>
+                </button> */}
               </div>
             </motion.div>
           ))
